@@ -15,7 +15,7 @@
 #include <errno.h>
 #include <stdarg.h>
 
-#include "debug.h"
+#include "lib/debug.h"
 
 // buffer for reading from tun/tap interface, must be >= 1500
 #define BUFSIZE 2048
