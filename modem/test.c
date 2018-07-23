@@ -1,5 +1,3 @@
-//#include <stdio.h>
-
 #include "modem.h"
 
 #include <signal.h>
