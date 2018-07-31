@@ -20,6 +20,7 @@ int main() {
 				listNodeDel(param, n);
 				n=n->sig;
 			}
+			printf("freed\n");
 		}
 		listFree(param);
 
@@ -27,17 +28,57 @@ int main() {
 
 	}
 
-	Config configuracion={"key","value"};
-	Config configuracion_buena={"key2","value"};
+	/*
+	 * AT+APPKEY=ce:e3:fa:63:e5:ee:e8:ff:28:dd:08:69:ca:48:87:1c
+	 * AT+APPEUI=00:00:00:00:00:00:00:02
+	 * AT+NWKSKEY=cb:c9:a5:4e:de:35:4e:c9:33:61:cf:01:c3:71:e7:e2
+	 * AT+DADDR=06:c6:f5:c0
+	 * AT+APPSKEY=81:3f:2e:ad:c7:ec:ce:26:ae:b2:33:87:a9:b9:cb:45
+	 * AT+NWKID=03:02:01:00
+	 * AT+DEUI=31:31:35:38:56:37:89:18
+	 * AT+ADR=0
+	 * AT+DR=2
+	 * AT+DCS=0
+	 * AT+TXP=3
+	 * AT+CLASS=C
+	 * AT+NJM=1
+	 * AT+JOIN 
+	 */
+	
+	Config ConfigSerPort={"SerialPort","/dev/ttyACM0"};
+	listNodeAdd(param, (Config *)&ConfigSerPort);
+	
+	Config ConfigAPPKEY={"AT+APPKEY","ce:e3:fa:63:e5:ee:e8:ff:28:dd:08:69:ca:48:87:1c\n"};
+	listNodeAdd(param, (Config *)&ConfigAPPKEY);
+	
+	Config ConfigNWSKEY={"AT+NWSKEY","cb:c9:a5:4e:de:35:4e:c9:33:61:cf:01:c3:71:e7:e2\n"};
+	listNodeAdd(param, (Config *)&ConfigNWSKEY);
+	
+	Config ConfigDADDR={"AT+DADDR", "06:c6:f5:c0\n"};
+	listNodeAdd(param, (Config *)&ConfigDADDR);
+	
+	Config ConfigAPPSKEY={"AT+APPSKEY", "81:3f:2e:ad:c7:ec:ce:26:ae:b2:33:87:a9:b9:cb:45\n"};
+	listNodeAdd(param, (Config *)&ConfigAPPSKEY);
+	
+	Config ConfigADR={"AT+ADR", "0\n"};
+	listNodeAdd(param, (Config *)&ConfigADR);
+	
+	Config ConfigDR={"AT+DR", "2\n"};
+	listNodeAdd(param, (Config *)&ConfigDR);
+	
+	Config ConfigDCS={"AT+DCS", "0\n"};
+	listNodeAdd(param, (Config *)&ConfigDCS);
+	
+	Config ConfigTXP={"AT+TXP", "3\n"};
+	listNodeAdd(param, (Config *)&ConfigTXP);
+	
+	Config ConfigCLASS={"AT+CLASS", "C\n"};
+	listNodeAdd(param, (Config *)&ConfigCLASS);
+	
+	Config ConfigNJM={"AT+NJM", "1\n"};
+	listNodeAdd(param, (Config *)&ConfigNJM);
 
-	listNodeAdd(param, (Config *)&configuracion);
-	listNodeAdd(param, (Config *)&configuracion_buena);
-	listNodeAdd(param, (Config *)&configuracion);
-	listNodeAdd(param, (Config *)&configuracion);
-	listNodeAdd(param, (Config *)&configuracion);
-	listNodeAdd(param, (Config *)&configuracion);
-	listNodeAdd(param, (Config *)&configuracion);
-
+	/*
 	{
 		Node *n=param->first;
 		while (n) {
@@ -47,6 +88,7 @@ int main() {
 			n=n->sig;
 		}
 	}
+	*/
 
 	if (signal(SIGINT,  sig_handler) == SIG_ERR) perror("\ncan't catch SIGINT\n");
 	if (signal(SIGQUIT, sig_handler) == SIG_ERR) perror("\ncan't catch SIGQUIT\n");
