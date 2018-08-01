@@ -46,12 +46,22 @@ int resp_read(int fd)
 		}
 }
 
+/*
+ * Ask the modem if we already joined the network
+ */
 int loratun_modem_check_joined()
 {
 	
-	
+	return -1;
 }
 
+/*
+ * Try again to join the network
+ */
+int loratun_modem_retry_join()
+{
+	return -1;
+}
 
 /*
  * Open the serial FD, parse the parameters, 

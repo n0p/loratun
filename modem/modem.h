@@ -17,6 +17,7 @@ typedef struct config Config;
 
 int loratun_modem_init(List *param);
 int loratun_modem_check_joined();
+int loratun_modem_retry_join();
 int loratun_modem_recv(char *data);
 int loratun_modem_send(char *data, int len);
 int loratun_modem_destroy();
