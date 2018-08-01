@@ -4,6 +4,8 @@
 #include <unistd.h>
 #include <stdlib.h>
 
+#define CONFIG(n, v) { Config c={n, v}; listNodeAdd(param, (Config *)&c); }
+
 int main() {
 
 	List *param=listNew();
@@ -44,39 +46,18 @@ int main() {
 	 * AT+NJM=1
 	 * AT+JOIN 
 	 */
-	
-	Config ConfigSerPort={"SerialPort","/dev/ttyACM0"};
-	listNodeAdd(param, (Config *)&ConfigSerPort);
-	
-	Config ConfigAPPKEY={"AT+APPKEY","ce:e3:fa:63:e5:ee:e8:ff:28:dd:08:69:ca:48:87:1c\n"};
-	listNodeAdd(param, (Config *)&ConfigAPPKEY);
-	
-	Config ConfigNWSKEY={"AT+NWSKEY","cb:c9:a5:4e:de:35:4e:c9:33:61:cf:01:c3:71:e7:e2\n"};
-	listNodeAdd(param, (Config *)&ConfigNWSKEY);
-	
-	Config ConfigDADDR={"AT+DADDR", "06:c6:f5:c0\n"};
-	listNodeAdd(param, (Config *)&ConfigDADDR);
-	
-	Config ConfigAPPSKEY={"AT+APPSKEY", "81:3f:2e:ad:c7:ec:ce:26:ae:b2:33:87:a9:b9:cb:45\n"};
-	listNodeAdd(param, (Config *)&ConfigAPPSKEY);
-	
-	Config ConfigADR={"AT+ADR", "0\n"};
-	listNodeAdd(param, (Config *)&ConfigADR);
-	
-	Config ConfigDR={"AT+DR", "2\n"};
-	listNodeAdd(param, (Config *)&ConfigDR);
-	
-	Config ConfigDCS={"AT+DCS", "0\n"};
-	listNodeAdd(param, (Config *)&ConfigDCS);
-	
-	Config ConfigTXP={"AT+TXP", "3\n"};
-	listNodeAdd(param, (Config *)&ConfigTXP);
-	
-	Config ConfigCLASS={"AT+CLASS", "C\n"};
-	listNodeAdd(param, (Config *)&ConfigCLASS);
-	
-	Config ConfigNJM={"AT+NJM", "1\n"};
-	listNodeAdd(param, (Config *)&ConfigNJM);
+
+	CONFIG("SerialPort", "/dev/ttyACM0");
+	CONFIG("AT+APPKEY", "ce:e3:fa:63:e5:ee:e8:ff:28:dd:08:69:ca:48:87:1c\n");
+	CONFIG("AT+NWSKEY", "cb:c9:a5:4e:de:35:4e:c9:33:61:cf:01:c3:71:e7:e2\n");
+	CONFIG("AT+DADDR", "06:c6:f5:c0\n");
+	CONFIG("AT+APPSKEY", "81:3f:2e:ad:c7:ec:ce:26:ae:b2:33:87:a9:b9:cb:45\n");
+	CONFIG("AT+ADR", "0\n");
+	CONFIG("AT+DR", "2\n");
+	CONFIG("AT+DCS", "0\n");
+	CONFIG("AT+TXP", "3\n");
+	CONFIG("AT+CLASS", "C\n");
+	CONFIG("AT+NJM", "1\n");
 
 	/*
 	{
