@@ -48,16 +48,16 @@ int main() {
 	 */
 
 	CONFIG("SerialPort", "/dev/ttyACM0");
-	CONFIG("AT+APPKEY", "ce:e3:fa:63:e5:ee:e8:ff:28:dd:08:69:ca:48:87:1c\n");
-	CONFIG("AT+NWSKEY", "cb:c9:a5:4e:de:35:4e:c9:33:61:cf:01:c3:71:e7:e2\n");
-	CONFIG("AT+DADDR", "06:c6:f5:c0\n");
-	CONFIG("AT+APPSKEY", "81:3f:2e:ad:c7:ec:ce:26:ae:b2:33:87:a9:b9:cb:45\n");
-	CONFIG("AT+ADR", "0\n");
-	CONFIG("AT+DR", "2\n");
-	CONFIG("AT+DCS", "0\n");
-	CONFIG("AT+TXP", "3\n");
-	CONFIG("AT+CLASS", "C\n");
-	CONFIG("AT+NJM", "1\n");
+	CONFIG("AT+APPKEY", "ce:e3:fa:63:e5:ee:e8:ff:28:dd:08:69:ca:48:87:1c");
+	CONFIG("AT+NWSKEY", "cb:c9:a5:4e:de:35:4e:c9:33:61:cf:01:c3:71:e7:e2");
+	CONFIG("AT+DADDR", "06:c6:f5:c0");
+	CONFIG("AT+APPSKEY", "81:3f:2e:ad:c7:ec:ce:26:ae:b2:33:87:a9:b9:cb:45");
+	CONFIG("AT+ADR", "0");
+	CONFIG("AT+DR", "2");
+	CONFIG("AT+DCS", "0");
+	CONFIG("AT+TXP", "3");
+	CONFIG("AT+CLASS", "C");
+	CONFIG("AT+NJM", "1");
 
 	/*
 	{

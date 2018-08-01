@@ -82,6 +82,8 @@ int resp_read(char* response)
 		perror ("Modem: error during RX");
 		return -6;
 	}
+	strncpy (response, line, strlen(line)-2); // -2 to avoid copying \r\n
+	return 1;
 }
 
 /*
@@ -91,10 +93,10 @@ int loratun_modem_check_joined()
 {
 	if ( get_init_status() < 0 ) return -1;
 	
-	printf("Sending JOIN request\n");
-	serial_write(fd, "AT+JOIN\n", 8);
+	printf("Checking JOIN status\n");
+	serial_write(fd, "AT+NJS=?\n", 8);
 	resp_read(scrapbuf);
-	printf("Got response: ",scrapbuf);
+	printf("Got response: %s",scrapbuf);
 	return -1;
 }
 
@@ -150,6 +152,7 @@ int loratun_modem_init(List *param) {
 				serial_write(fd, c->key, strlen(c->key));
 				serial_write(fd, &equals, 1);
 				serial_write(fd, c->value, strlen(c->value));
+				serial_write(fd, &newline, 1);
 				resp_read(scrapbuf);
 			} else printf("Config Key %s is not an AT command\n", c->key);
 			n=n->sig;
