@@ -10,12 +10,14 @@
 #define MAX_LINE 1024
 
 struct config {
-	char key[1024];
-	char value[1024];
+	char key[512];
+	char value[512];
 };
 typedef struct config Config;
 
 int loratun_modem_init(List *param);
+int loratun_modem_check_joined();
+int loratun_modem_retry_join();
 int loratun_modem_recv(char *data);
 int loratun_modem_send(char *data, int len);
 int loratun_modem_destroy();
