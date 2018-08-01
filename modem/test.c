@@ -94,7 +94,8 @@ int main() {
 	if (signal(SIGQUIT, sig_handler) == SIG_ERR) perror("\ncan't catch SIGQUIT\n");
 
 	loratun_modem_init(param);
-
+	loratun_modem_check_joined();
+	
 	sig_handler(SIGINT);
 
 	return 0;
