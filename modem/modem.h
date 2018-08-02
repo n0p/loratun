@@ -4,7 +4,6 @@
 #include <stdio.h>
 
 #include "../lib/list.h"
-#include "../lib/serial.h"
 //#include "../lib/debug.h"
 
 #define MAX_LINE 1024
@@ -15,10 +14,10 @@ struct config {
 };
 typedef struct config Config;
 
-int loratun_modem_init(List *param);
+int loratun_modem(List *param);
 int loratun_modem_check_joined();
 int loratun_modem_retry_join();
-int loratun_modem_recv(char *data);
+extern int loratun_modem_recv(char *data, int len); // callback
 int loratun_modem_send(char *data, int len);
 int loratun_modem_destroy();
 

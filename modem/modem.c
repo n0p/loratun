@@ -1,4 +1,5 @@
 #include "modem.h"
+#include "../lib/serial.h"
 
 int fd=0;
 int line_buf_pos=0;
@@ -54,7 +55,7 @@ int resp_read(char* response)
 	if (n<=1) return resp_read(response); // is the buffer empty?
 	if (strncmp("\r\n", line, 2) == 0 ) return resp_read(response); // is it an empty line?
 	line[n]=0;
-	printf("SERIAL DEBUG: GOT %d bytes: %s \n", n, line);
+	//printf("SERIAL DEBUG: GOT %d bytes: %s \n", n, line);
 	
 	if (strncmp("OK", line, 2) == 0 ) return 1;
 	
@@ -94,9 +95,17 @@ int loratun_modem_check_joined()
 	if ( get_init_status() < 0 ) return -1;
 	
 	printf("Checking JOIN status\n");
-	serial_write(fd, "AT+NJS=?\n", 8);
+	serial_write(fd, "AT+NJS=?\n", 9);
 	resp_read(scrapbuf);
-	printf("Got response: %s",scrapbuf);
+	if (scrapbuf[0] == '0') { 
+		printf("We are OFFline\n");
+		return 0;
+	}
+	else if (scrapbuf[0] == '1') { 
+		printf("We are ONline\n");
+		return 1;
+	}
+	printf("Unknown response to Network Join Status: %s\n",scrapbuf);
 	return -1;
 }
 
@@ -106,7 +115,11 @@ int loratun_modem_check_joined()
 int loratun_modem_retry_join()
 {
 	if ( get_init_status() < 0 ) return -1;
-	return -1;
+	printf("Sending JOIN request\n");
+	serial_write(fd, "AT+JOIN\n", 8);
+	sleep(1);
+	resp_read(scrapbuf);
+	return 0;
 }
 
 /*
@@ -161,21 +174,51 @@ int loratun_modem_init(List *param) {
 		printf("Sending JOIN request\n");
 		serial_write(fd, "AT+JOIN\n", 8);
 		resp_read(scrapbuf);
+		return 0;
 		
 	} else {
 		perror("Can't open serial port.");
+		return -1;
 	}
 
-	return 0;
+	return -99; // we should never get here
 
 }
 
 /*
  * Try to rx a packet from the network
  */
-int loratun_modem_recv(char *data) {
+int check_loratun_modem_recv(char *data) {
 	if ( get_init_status() < 0 ) return -1;
+	char* cleanbuf;
+	cleanbuf = malloc(2048);
 	
+	serial_write(fd, "AT+RECVB=?\n", 11);
+	int code = resp_read(cleanbuf);
+	printf ("RECV response: %s\n", cleanbuf);
+
+	switch (code) {
+		case 1: // command succeeded
+			// printf ("pos:%d sz:%d\n", strcspn(cleanbuf, ":"), strlen(cleanbuf));
+			if (strcspn(cleanbuf, ":") > strlen(cleanbuf)-1 ) { // Do we have something after portnumber?
+				printf ("Got a packet!");
+				strncpy (data, cleanbuf, strlen(cleanbuf));
+				free(cleanbuf);
+				return 1;
+			} else {
+				free(cleanbuf);
+				return 0;
+			}
+		case -5: // we aren't joined
+			perror("Not joined to any network");
+			free(cleanbuf);
+			return -5;
+		default: // some other error
+			perror("Unexpected RX error");
+			free(cleanbuf);
+			return -1;
+	}
+	free(cleanbuf);
 	return 0;
 }
 
@@ -198,5 +241,62 @@ int loratun_modem_destroy() {
 	if (fd) serial_close(fd);
 	fd = 0;
 	printf("Modem: Closed serial port\n");
+	return 0;
+}
+
+/*
+ * Modem management loop
+ */
+int loratun_modem(List *param){
+	int abort = 0;
+	int errcount = 0;
+	char* pktbuf;
+	pktbuf = malloc(2048);
+	int initerror = loratun_modem_init(param);
+	
+	if (initerror < 0) {
+		perror ("modem init failed!!");
+		return initerror;
+	}
+	
+	printf("Modem: Checking joined\n");
+	loratun_modem_check_joined();
+	
+	printf("Modem: Loop()\n");
+	while (!abort){
+		switch (check_loratun_modem_recv(pktbuf)) {
+			case 0:
+				printf("Loop(): RECV got no data\n");
+				errcount = 0;
+				break;
+			case 1:
+				printf("Loop(): RECV got data!\n");
+				errcount = 0;
+				/**** TODO: GET DATA AND CALLBACK() ****/
+				break;
+			case -5:
+				perror("Loop(): Could not RECV: Not joined");
+				loratun_modem_retry_join();
+			default:
+				perror("Could not RECV");
+				errcount++;
+		}
+
+		if (resp_read(scrapbuf) < 0){
+			perror("got an error while on loop!!");
+			errcount++;
+		}
+
+		sleep(1);
+		
+		if (errcount > 5) {
+			perror("Loop() aborting: too many errors");
+			abort = 1;
+			loratun_modem_destroy();
+			free(pktbuf);
+			return -1;
+		}
+	}
+	free(pktbuf);
 	return 0;
 }

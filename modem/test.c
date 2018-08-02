@@ -3,6 +3,7 @@
 #include <signal.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <string.h>
 
 int main() {
 
@@ -82,8 +83,7 @@ int main() {
 	if (signal(SIGINT,  sig_handler) == SIG_ERR) perror("\ncan't catch SIGINT\n");
 	if (signal(SIGQUIT, sig_handler) == SIG_ERR) perror("\ncan't catch SIGQUIT\n");
 
-	loratun_modem_init(param);
-	loratun_modem_check_joined();
+	loratun_modem(param);
 	
 	sig_handler(SIGINT);
 
