@@ -16,12 +16,15 @@
 #include <stdarg.h>
 
 #include "lib/debug.h"
+#include "schc/schc.h"
 
 // buffer for reading from tun/tap interface, must be >= 1500
 #define BUFSIZE 2048
 #define CLIENT 0
 #define SERVER 1
-#define PORT 55555
+#define PORT 10001
+
+#define BUF2NUNIT16(buf, n) (unsigned char)buf[n]*256+(unsigned char)buf[n+1];
 
 // output to console
 void con(char *msg, ...){
@@ -267,10 +270,9 @@ int main(int argc, char *argv[]) {
 			exit(1);
 		}
 
+		// data from tun/tap: just read it and write it to the network
 		if (FD_ISSET(tap_fd, &rd_set)) {
 
-			// data from tun/tap: just read it and write it to the network
-			
 			nread = cread(tap_fd, buffer, BUFSIZE);
 
 			stats_tap++;
@@ -283,6 +285,56 @@ int main(int argc, char *argv[]) {
 			fwrite(buffer, nread, sizeof(unsigned char), fd);
 			fclose(fd);
 			ret=system("od -Ax -tx1 -v 1packet.bin > 1packet.hex");
+
+
+			/*
+			struct field_values {
+				uint8_t ipv6_version;
+				uint8_t ipv6_traffic_class;
+				uint32_t ipv6_flow_label;
+				size_t ipv6_payload_length;
+				uint8_t ipv6_next_header;
+				uint8_t ipv6_hop_limit;
+				uint8_t ipv6_dev_prefix[8];
+				uint8_t ipv6_dev_iid[8];
+				uint8_t ipv6_app_prefix[8];
+				uint8_t ipv6_app_iid[8];
+				uint16_t udp_dev_port;
+				uint16_t udp_app_port;
+				size_t udp_length;
+				uint16_t udp_checksum;
+				uint8_t payload[SIZE_MTU_IPV6]; 
+			};
+			*/
+			struct field_values ipv6packet = {0};
+
+
+			ipv6packet.ipv6_version=6;
+			ipv6packet.ipv6_next_header=17;
+			ipv6packet.ipv6_hop_limit=0xFF;
+			ipv6packet.udp_dev_port=BUF2NUNIT16(buffer, 40);
+			ipv6packet.udp_app_port=BUF2NUNIT16(buffer, 42); // 43690;
+			ipv6packet.udp_length=SIZE_UDP+(nread-48);
+
+			memcpy(&(ipv6packet.ipv6_dev_prefix), &buffer[8], 16); // copiar dirección IPv6 origen
+			memcpy(&(ipv6packet.ipv6_app_prefix), &buffer[24], 16); // copiar dirección IPv6 destino
+			memcpy(&(ipv6packet.payload), &buffer[48], nread-48); // copiar dirección IPv6 destino
+			memcpy(&(ipv6packet.udp_checksum), &buffer[46], 1); // copiar checksum
+
+			ipv6packet.udp_length=BUF2NUNIT16(buffer, 44);
+			ipv6packet.udp_checksum=BUF2NUNIT16(buffer, 46);
+
+			printf("********** %d %d\n", ipv6packet.udp_dev_port, ipv6packet.udp_app_port);
+			printf("********** %x %x\n", ipv6packet.udp_length, ipv6packet.udp_checksum);
+			debug((unsigned char *)&ipv6packet, sizeof(ipv6packet));
+
+			uint8_t schc_packet[SIZE_MTU_IPV6];
+			size_t  schc_packet_len;
+			int ret=schc_compress(&ipv6packet, (uint8_t *)&schc_packet, (size_t *)&schc_packet_len);
+
+			printf("*******ret=%d len=%d\n", ret, (int) schc_packet_len);
+			debug(schc_packet, schc_packet_len);
+
 
 /*
 
@@ -298,14 +350,14 @@ int main(int argc, char *argv[]) {
 
 		}
 
+
 /*
+		//unsigned long int net2tap=0;
 
-	unsigned long int net2tap=0;
-
+		// data from the network: read it, and write it to the tun/tap interface. 
+		// We need to read the length first, and then the packet
 		if (FD_ISSET(net_fd, &rd_set)) {
 
-			// data from the network: read it, and write it to the tun/tap interface. 
-			// We need to read the length first, and then the packet
 
 			// Read length
 			nread = read_n(net_fd, (char *)&plength, sizeof(plength));

@@ -3,6 +3,6 @@
 
 #include "schc.h"
 
-extern struct field_description rules[7][14];
+extern struct field_description rules[8][14];
 
 #endif

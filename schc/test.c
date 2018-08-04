@@ -49,12 +49,30 @@ struct field_values sample_packet = {
 		{ UDP_CHECKSUM,        16, 1, BI, "0",                IGNORE, COMPUTE_CHECKSUM }
 	},
 */
+
+
+	#define DUMP(add, len)                             \
+	do {                                                      \
+		int i;                                                 \
+		for (i = 0 ; i < (len) ; i++) {                        \
+			printf("%02X ", (unsigned int)((uint8_t*)(add))[i]); \
+		}                                                      \
+		printf("\n");                                          \
+	} while(0)
+
+
 int main() {
 
 	//sample_packet.udp_dev_port = 6666;
 	//sample_packet.udp_app_port = 4567;
 
-	int ret=schc_compress(&sample_packet);
-	printf("*******ret=%d\n", ret);
+	uint8_t schc_packet[SIZE_MTU_IPV6];
+	size_t  schc_packet_len;
+	int ret=schc_compress(&sample_packet, (uint8_t *)&schc_packet, (size_t *)&schc_packet_len);
+
+	printf("*******ret=%d len=%d\n", ret, (int) schc_packet_len);
+	DUMP(schc_packet, schc_packet_len);
+
 	return 0;
+
 }

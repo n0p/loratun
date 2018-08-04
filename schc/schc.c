@@ -39,13 +39,11 @@
 
 #include <stdio.h>
 #include <string.h> /* To use memcmp() */
-
 #include <arpa/inet.h> /* inet_pton(), htonl(), htons() */
 #include <netinet/in.h>
 #include <netinet/if_ether.h>
 #include <netinet/ip6.h>
 #include <netinet/udp.h>
-
 #include <bsd/string.h> /* strlcpy */
 
 /**********************************************************************/
@@ -65,8 +63,7 @@
 /**********************************************************************/
 /***        Macro Definitions                                       ***/
 /**********************************************************************/
-
-#define DEBUG // Activate this macro to print debug messages.
+//#define DEBUG // Activate this macro to print debug messages.
 
 #ifdef DEBUG
 
@@ -602,7 +599,8 @@ static int check_matching(const struct field_description *rule_row, const struct
  * stops as soon as it finds the error and does nothing else.
  *
  */
-int schc_compress(const struct field_values *ipv6_packet)
+
+int schc_compress(const struct field_values *ipv6_packet, uint8_t *schc_packet2, size_t *schc_packet_len2)
 {
 
 	uint8_t schc_packet[SIZE_MTU_IPV6] = {0};
@@ -705,6 +703,10 @@ int schc_compress(const struct field_values *ipv6_packet)
 		 */
 
 		size_t app_payload_len = ipv6_packet->udp_length - SIZE_UDP;
+		if (app_payload_len<0) {
+			PRINTF("PAYLOAD_LEN < 0\n");
+			return -1;
+		}
 
 		uint8_t *p = schc_packet + schc_packet_len;
 
@@ -725,6 +727,11 @@ int schc_compress(const struct field_values *ipv6_packet)
 		 * we return fail.
 		 */
 		//return schc_fragmentate(schc_packet, schc_packet_len);
+
+		// copy
+		memcpy(schc_packet2, (uint8_t *)&schc_packet, schc_packet_len);
+		*schc_packet_len2=schc_packet_len;
+
 		return 0;
 
 	}

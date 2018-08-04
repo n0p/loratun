@@ -12,6 +12,8 @@
 //#define ADDRESS "::1"
 #define ADDRESS "fd73:ab44:93dd:6b18::1" // fd73:ab44:93dd:6b18::/64
 #define PORT 43690 // 0xAAAA;
+//#define ADDRESS "fe80:0000:0000:0000:0800:27ff:fe00:0001"
+//#define PORT 10001
 
 int main(void)
 {

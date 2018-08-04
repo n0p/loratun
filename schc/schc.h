@@ -145,7 +145,7 @@ struct field_values {
  *
  * @return 0 if successfull, non-zero if there was an error.
  */
-int schc_compress(const struct field_values *ipv6_packet);
+int schc_compress(const struct field_values *ipv6_packet, uint8_t *schc_packet2, size_t *schc_packet_len2);
 
 /*
  * Extract in fv the data of the compressed packet used the SCHC decompression

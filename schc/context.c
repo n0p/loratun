@@ -173,4 +173,25 @@ struct field_description rules[][14] = {
 		{ UDP_LENGTH,          16, 1, BI, "0",                IGNORE, COMPUTE_LENGTH   },
 		{ UDP_CHECKSUM,        16, 1, BI, "0",                IGNORE, COMPUTE_CHECKSUM }
 	},
+	{ /* Rule 7 */
+
+		/* All UDP packets with UDP sport == UDP dport == 8720. */
+
+		/* Field;               FL; FP;DI; TV;                 MO;     CA; */
+		{ IPV6_VERSION,        4,  1, BI, "6",                EQUALS, NOT_SENT         },
+		{ IPV6_TRAFFIC_CLASS,  8,  1, BI, "0",                IGNORE, NOT_SENT         },
+		{ IPV6_FLOW_LABEL,     20, 1, BI, "0",                IGNORE, NOT_SENT         },
+		{ IPV6_PAYLOAD_LENGTH, 16, 1, BI, "0",                IGNORE, COMPUTE_LENGTH   },
+		{ IPV6_NEXT_HEADER,    8,  1, BI, "17",               IGNORE, NOT_SENT         },
+		{ IPV6_HOP_LIMIT,      8,  1, BI, "0",                IGNORE, NOT_SENT         },
+		{ IPV6_DEV_PREFIX,     64, 1, BI, "FD73AB4493DD6B18", EQUALS, NOT_SENT         },
+		{ IPV6_DEVIID,         64, 1, BI, "0000000000000000", EQUALS, NOT_SENT         },
+		{ IPV6_APP_PREFIX,     64, 1, BI, "FD73AB4493DD6B18", EQUALS, NOT_SENT         },
+		{ IPV6_APPIID,         64, 1, BI, "0000000000000001", EQUALS, NOT_SENT         },
+
+		{ UDP_DEVPORT,         16, 1, BI, "0",                IGNORE, NOT_SENT         },
+		{ UDP_APPPORT,         16, 1, BI, "43690",            EQUALS, NOT_SENT         },
+		{ UDP_LENGTH,          16, 1, BI, "0",                IGNORE, COMPUTE_LENGTH   },
+		{ UDP_CHECKSUM,        16, 1, BI, "0",                IGNORE, COMPUTE_CHECKSUM }
+	},
 };
