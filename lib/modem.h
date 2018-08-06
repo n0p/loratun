@@ -3,19 +3,17 @@
 
 #include <stdio.h>
 
-#include "../lib/list.h"
-#include "../lib/serial.h"
-//#include "../lib/debug.h"
+#include "list.h"
+//#include "serial.h"
+//#include "debug.h"
 
-#define MAX_LINE 1024
-
-struct config {
+struct modem_config {
 	char key[512];
 	char value[512];
 };
-typedef struct config Config;
+typedef struct modem_config ModemConfig;
 
-int loratun_modem(List *param);
+int loratun_modem(List *modem_config);
 extern int loratun_modem_recv(char *data, int len); // callback
 int loratun_modem_send(char *data, int len);
 int loratun_modem_destroy();

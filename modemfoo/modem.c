@@ -1,8 +1,8 @@
-#include "modem.h"
+#include "../lib/modem.h"
 
 int loratun_modem(List *param) {
 	printf("Modem: Loop\n");
-	sleep(4);
+	//sleep(4);
 	return 0;
 }
 
@@ -11,13 +11,13 @@ char *loratun_modem_error() {
 }
 
 int loratun_modem_send(char *data, int len) {
-	//printf("*** voy a enviar len=%d!\n", len);
-	char *s=malloc((len+10)*sizeof(char));
+	printf("*** voy a enviar len=%d!\n", len);
+	//char *s=malloc((len+10)*sizeof(char));
 	//sprintf(s, "LEN(%d)",len);
-	memcpy(s, "ECHO:", 5);
-	memcpy(s+5, data, len);
-	s[len+5]=0;
-	loratun_modem_recv(s, 3);
+	//memcpy(s, "ECHO:", 5);
+	//memcpy(s+5, data, len);
+	//s[len+5]=0;
+	loratun_modem_recv(data, len);
 	//free(s);
 	return 0;
 }

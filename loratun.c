@@ -16,6 +16,7 @@
 #include <stdarg.h>
 
 #include "lib/debug.h"
+#include "lib/modem.h"
 #include "schc/schc.h"
 
 //   #include <stddef.h>
@@ -28,6 +29,7 @@ void con(char *msg, ...){
 	va_start(argp, msg);
 	vfprintf(stdout, msg, argp);
 	va_end(argp);
+	fflush(stdout);
 }
 
 // prints custom error messages on stderr
@@ -119,8 +121,7 @@ int buffer2fields(unsigned char *buffer, int *len, struct field_values *p) {
 	p->udp_app_port      =(uint8_t)buffer[0x2A]*256 + (uint8_t)buffer[0x2B];
 	p->udp_length        =(uint8_t)buffer[0x2C]*256 + (uint8_t)buffer[0x2D];
 	p->udp_checksum      =(uint8_t)buffer[0x2E]*256 + (uint8_t)buffer[0x2F];
-	memcpy(&(p->ipv6_dev_prefix), &buffer[0x08], 16); // copy IPv6 src address
-	memcpy(&(p->ipv6_app_prefix), &buffer[0x18], 16); // copy IPv6 dst address
+	memcpy(&(p->ipv6_dev_prefix), &buffer[0x08], 32); // copy IPv6 src+dst address
 	memcpy(&(p->payload),         &buffer[0x30], payload_length);
 
 	/*
@@ -167,20 +168,84 @@ int fields2buffer(struct field_values *p, char *buffer, int *len) {
 
 }
 
+
+List *modem_config;
+
+void modemConfigInit() {
+	modem_config=listNew();
+}
+
+void modemConfigAdd(char *k, char *v) {
+	ModemConfig *c=malloc(sizeof(ModemConfig));
+	strcpy(c->key, k);
+	strcpy(c->value, v);
+	listNodeAdd(modem_config, (ModemConfig *)c);
+}
+
+void modemConfigDel(ModemConfig *c) {
+	free(c);
+}
+
+void modemConfigList() {
+	Node *n=modem_config->first;
+	while (n) {
+		ModemConfig *c=(ModemConfig *)n->e;
+		printf("%s=%s\n", c->key, c->value);
+		//if (strcmp(c->key, "key2")==0) printf("*** parámetro me interesa!\n");
+		n=n->sig;
+	}
+}
+
+int strpos(char *haystack, char *needle) {
+	char *p=strstr(haystack, needle);
+	if (p) return p - haystack;
+	return -1;
+}
+
+
+unsigned long int stats_tap_r=0;
+unsigned long int stats_tap_w=0;
+
+int tap_fd;
+
+int loratun_modem_recv(char *data, int len) {
+
+	unsigned char buffer[BUFFER_SIZE];
+
+	// decompress
+
+	struct field_values p = {0};
+
+	int ret=schc_decompress((uint8_t *)data, len, (struct field_values *)&p);
+	//printf("schc_decompress ret=%d\n", ret);
+	//debug((unsigned char *)&p, p.udp_length + offsetof(typeof(p), payload) - 0x08);
+	int buffer_len=0;
+	if (!ret && !fields2buffer(&p, (unsigned char *)&buffer, (int *)&buffer_len)) {
+		printf("UNSC "); debug(buffer, buffer_len);
+
+		stats_tap_w++;
+
+		// now buffer[] contains a full packet or frame, write it into the tun/tap interface
+		int nwrite = cwrite(tap_fd, buffer, buffer_len);
+		con("NET2TAP %lu: Written %d bytes to the tap interface\n", stats_tap_w, nwrite);
+
+	}
+
+	return 0;
+}
+
 // main program
 int main(int argc, char *argv[]) {
 
 	//int debug_level=0;
-	int tap_fd, option;
+	int option;
 	int flags = IFF_TUN;
 	char if_name[IFNAMSIZ] = "";
-	int maxfd;
 	int nread;
 	unsigned char buffer[BUFFER_SIZE];
 	//struct sockaddr_in local, remote;
 	//char remote_ip[16] = "";            // dotted quad IP string
-	int sock_fd=0, net_fd=0;
-	unsigned long int stats_tap=0;
+	//int sock_fd=0;
 
 	// usage: prints usage and exits
 	void usage() {
@@ -195,9 +260,12 @@ int main(int argc, char *argv[]) {
 		exit(1);
 	}
 
+	// inicializar lista de configuraciones de modem
+	modemConfigInit();
+
 	// check command line options
-	while ((option = getopt(argc, argv, "i:uahd")) > 0) {
-		switch(option) {
+	while ((option = getopt(argc, argv, "i:m:uahd")) > 0) {
+		switch (option) {
 			case 'd':
 				//debug_level=1;
 				break;
@@ -205,13 +273,23 @@ int main(int argc, char *argv[]) {
 				usage();
 				break;
 			case 'i':
-				strncpy(if_name,optarg, IFNAMSIZ-1);
+				strncpy(if_name, optarg, IFNAMSIZ-1);
 				break;
 			case 'u':
 				flags=IFF_TUN;
 				break;
 			case 'a':
 				flags=IFF_TAP;
+				break;
+			case 'm':
+				{
+					int p=strpos(optarg, "=");
+					if (p>0) {
+						int vlen=strlen(optarg) - p;
+						optarg[p]=0;
+						modemConfigAdd(optarg, optarg+p+1);
+					}
+				}
 				break;
 			default:
 				err("Unknown option %c\n", option);
@@ -240,93 +318,25 @@ int main(int argc, char *argv[]) {
 
 	con("Interface '%s' enabled\n", if_name);
 
+/*
 	if ((sock_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
 		perror("socket()");
 		exit(1);
 	}
-
-
-/*
-
-
-	socklen_t remotelen;
-	int cliserv=-1;    // must be specified on cmd line
-	int optval=1;
-
-
-	if (cliserv == CLIENT) {
-		// Client, try to connect to server
-
-		// assign the destination address
-		memset(&remote, 0, sizeof(remote));
-		remote.sin_family = AF_INET;
-		remote.sin_addr.s_addr = inet_addr(remote_ip);
-		remote.sin_port = htons(port);
-
-		// connection request
-		if (connect(sock_fd, (struct sockaddr*) &remote, sizeof(remote)) < 0) {
-			perror("connect()");
-			exit(1);
-		}
-
-		net_fd = sock_fd;
-		con("CLIENT: Connected to server %s\n", inet_ntoa(remote.sin_addr));
-		
-	} else {
-
-		// Server, wait for connections
-
-		// avoid EADDRINUSE error on bind()
-		if (setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR, (char *)&optval, sizeof(optval)) < 0) {
-			perror("setsockopt()");
-			exit(1);
-		}
-
-		memset(&local, 0, sizeof(local));
-		local.sin_family = AF_INET;
-		local.sin_addr.s_addr = htonl(INADDR_ANY);
-		local.sin_port = htons(port);
-		if (bind(sock_fd, (struct sockaddr*) &local, sizeof(local)) < 0) {
-			perror("bind()");
-			exit(1);
-		}
-
-		if (listen(sock_fd, 5) < 0) {
-			perror("listen()");
-			exit(1);
-		}
-
-		// wait for connection request
-		remotelen = sizeof(remote);
-		memset(&remote, 0, remotelen);
-		if ((net_fd = accept(sock_fd, (struct sockaddr*)&remote, &remotelen)) < 0) {
-			perror("accept()");
-			exit(1);
-		}
-
-		con("SERVER: Client connected from %s\n", inet_ntoa(remote.sin_addr));
-
-	}
 */
 
-	// use select() to handle two descriptors at once
-	maxfd = (tap_fd > net_fd?tap_fd:net_fd);
-
+	// bucle principal
 	while (1) {
 
 		int ret;
 		fd_set rd_set;
 
 		FD_ZERO(&rd_set);
-		FD_SET(tap_fd, &rd_set); FD_SET(net_fd, &rd_set);
+		FD_SET(tap_fd, &rd_set);
 
-		ret = select(maxfd + 1, &rd_set, NULL, NULL, NULL);
-
-		if (ret < 0 && errno == EINTR) {
-			continue;
-		}
-
+		ret = select(tap_fd + 1, &rd_set, NULL, NULL, NULL);
 		if (ret < 0) {
+			if (errno == EINTR) continue;
 			perror("select()");
 			exit(1);
 		}
@@ -336,16 +346,18 @@ int main(int argc, char *argv[]) {
 
 			nread = cread(tap_fd, buffer, BUFFER_SIZE);
 
-			stats_tap++;
-			con("LORATUN %lu: Read %d bytes from the tap interface\n", stats_tap, nread);
+			stats_tap_r++;
+			con("LORATUN %lu: Read %d bytes from the tap interface\n", stats_tap_r, nread);
 
 			printf("READ "); debug(buffer, nread);
 
 			// *** debug: save binary packet to file
-			FILE *fd=fopen("1packet.bin", "w");
-			fwrite(buffer, nread, sizeof(unsigned char), fd);
-			fclose(fd);
-			ret=system("od -Ax -tx1 -v 1packet.bin > 1packet.hex");
+			/*
+				FILE *fd=fopen("1packet.bin", "w");
+				fwrite(buffer, nread, sizeof(unsigned char), fd);
+				fclose(fd);
+				ret=system("od -Ax -tx1 -v 1packet.bin > 1packet.hex");
+			*/
 
 			uint8_t schc_packet[SIZE_MTU_IPV6];
 			size_t  schc_packet_len;
@@ -360,68 +372,20 @@ int main(int argc, char *argv[]) {
 					//printf("schc_compress ret=%d newlen=%d\n", ret, (int) schc_packet_len);
 					if (!ret) {
 						printf("SCHC "); debug(schc_packet, schc_packet_len);
+						// enviar paquete al modem
+						loratun_modem_send(schc_packet, schc_packet_len);
 					}
 				}
 
 			}
 
-			// decompress
-			{
+			/*
 
-				struct field_values p = {0};
+			pthread_mutex_lock(&mutex);
 
-				int len=0;
-				int ret=schc_decompress((uint8_t *)&schc_packet, schc_packet_len, (struct field_values *)&p);
-				//printf("schc_decompress ret=%d\n", ret);
-				//debug((unsigned char *)&p, p.udp_length + offsetof(typeof(p), payload) - 0x08);
-				if (!ret && !fields2buffer(&p, (unsigned char *)&buffer, (int *)&len)) {
-					printf("UNSC "); debug(buffer, len);
-				}
-
-			}
-
-/*
-
-			uint16_t nwrite, plength;
-
-			// write length + packet
-			plength = htons(nread);
-			nwrite = cwrite(net_fd, (char *)&plength, sizeof(plength));
-			nwrite = cwrite(net_fd, buffer, nread);
-			
-			con("TAP_IN %lu: Written %d bytes to the network\n", stats_tap, nwrite);
-*/
+			*/
 
 		}
-
-
-/*
-		//unsigned long int net2tap=0;
-
-		// data from the network: read it, and write it to the tun/tap interface. 
-		// We need to read the length first, and then the packet
-		if (FD_ISSET(net_fd, &rd_set)) {
-
-
-			// Read length
-			nread = read_n(net_fd, (char *)&plength, sizeof(plength));
-			if (nread == 0) {
-				// ctrl-c at the other end
-				break;
-			}
-
-			net2tap++;
-
-			// read packet
-			nread = read_n(net_fd, buffer, ntohs(plength));
-			con("NET2TAP %lu: Read %d bytes from the network\n", net2tap, nread);
-
-			// now buffer[] contains a full packet or frame, write it into the tun/tap interface
-			nwrite = cwrite(tap_fd, buffer, nread);
-			con("NET2TAP %lu: Written %d bytes to the tap interface\n", net2tap, nwrite);
-
-		}
-*/
 
 	}
 
