@@ -18,13 +18,9 @@
 #include "lib/debug.h"
 #include "schc/schc.h"
 
-// buffer for reading from tun/tap interface, must be >= 1500
-#define BUFSIZE 2048
-#define CLIENT 0
-#define SERVER 1
-#define PORT 10001
+//   #include <stddef.h>
 
-#define BUF2NUNIT16(buf, n) (unsigned char)buf[n]*256+(unsigned char)buf[n+1];
+#define BUFFER_SIZE 2048 // buffer for reading from tun/tap interface, must be >= 1500
 
 // output to console
 void con(char *msg, ...){
@@ -106,6 +102,71 @@ int read_n(int fd, unsigned char *buf, int n) {
 	return n;
 }
 
+// convert a IPv6 packet to the struct field_values used by schc_compress
+int buffer2fields(unsigned char *buffer, int *len, struct field_values *p) {
+
+	if (buffer[0] & 0xF0 != 0x60) return 1; // no IPv6 packet
+	if (*len > BUFFER_SIZE) return 2; // prevent buffer overrun
+
+	int payload_length=*len - 0x30;
+
+	p->ipv6_version      =6;
+	p->ipv6_traffic_class=(uint16_t)buffer[0x01]>>4;
+	p->ipv6_flow_label   =((buffer[0x01] & 0x0F)<<16) + (buffer[0x02]<<8) + buffer[0x03];
+	p->ipv6_next_header  =(uint8_t)buffer[0x06]; // 17 for UDP
+	p->ipv6_hop_limit    =(uint8_t)buffer[0x07];
+	p->udp_dev_port      =(uint8_t)buffer[0x28]*256 + (uint8_t)buffer[0x29];
+	p->udp_app_port      =(uint8_t)buffer[0x2A]*256 + (uint8_t)buffer[0x2B];
+	p->udp_length        =(uint8_t)buffer[0x2C]*256 + (uint8_t)buffer[0x2D];
+	p->udp_checksum      =(uint8_t)buffer[0x2E]*256 + (uint8_t)buffer[0x2F];
+	memcpy(&(p->ipv6_dev_prefix), &buffer[0x08], 16); // copy IPv6 src address
+	memcpy(&(p->ipv6_app_prefix), &buffer[0x18], 16); // copy IPv6 dst address
+	memcpy(&(p->payload),         &buffer[0x30], payload_length);
+
+	/*
+	printf("*ipv6/udp:p class=%x flow=%x next=%x hop=%x udp(sport=%d dport=%d len=%d checksum=%d)\n",
+		p->ipv6_traffic_class, p->ipv6_flow_label,
+		p->ipv6_next_header, p->ipv6_hop_limit,
+		p->udp_dev_port, p->udp_app_port,
+		(unsigned int)p->udp_length, (unsigned int)p->udp_checksum
+	);
+	debug((unsigned char *)p, offsetof(typeof(*p), payload) + payload_length);
+	*/
+
+	return 0;
+
+}
+
+// convert the struct field_values passed by schc_decompress to a IPv6 packet
+int fields2buffer(struct field_values *p, char *buffer, int *len) {
+
+	*len=(int)p->udp_length + 0x28;
+	if (*len > BUFFER_SIZE) return 1; // prevent buffer overflow
+	//memset(buffer, 0, *len); // not needed because all bytes are overwritten
+	buffer[0x00]=0x60;
+	buffer[0x01]=(p->ipv6_traffic_class*0x10) + ((p->ipv6_flow_label & 0xF0000)>>16);
+	buffer[0x02]=(p->ipv6_flow_label & 0xFF00)>>8;
+	buffer[0x03]=(p->ipv6_flow_label & 0xFF);
+	buffer[0x04]=(p->ipv6_payload_length & 0xFF00)>>8;
+	buffer[0x05]=(p->ipv6_payload_length & 0xFF);
+	buffer[0x06]=p->ipv6_next_header;
+	buffer[0x07]=p->ipv6_hop_limit;
+	memcpy(&buffer[0x08], &(p->ipv6_dev_prefix), 32); // copy IPv6 src+dst address
+	buffer[0x28]=(p->udp_dev_port & 0xFF00)>>8;
+	buffer[0x29]=(p->udp_dev_port & 0xFF);
+	buffer[0x2A]=(p->udp_app_port & 0xFF00)>>8;
+	buffer[0x2B]=(p->udp_app_port & 0xFF);
+	buffer[0x2C]=(p->udp_length & 0xFF00)>>8;
+	buffer[0x2D]=(p->udp_length & 0xFF);
+	buffer[0x2E]=(p->udp_checksum & 0xFF00)>>8;
+	buffer[0x2F]=(p->udp_checksum & 0xFF);
+	if ((0x30 + p->ipv6_payload_length - SIZE_UDP) > BUFFER_SIZE) return 2; // prevent buffer overflow
+	memcpy(&buffer[0x30], &(p->payload), p->ipv6_payload_length - SIZE_UDP);
+
+	return 0;
+
+}
+
 // main program
 int main(int argc, char *argv[]) {
 
@@ -114,8 +175,8 @@ int main(int argc, char *argv[]) {
 	int flags = IFF_TUN;
 	char if_name[IFNAMSIZ] = "";
 	int maxfd;
-	uint16_t nread;
-	unsigned char buffer[BUFSIZE];
+	int nread;
+	unsigned char buffer[BUFFER_SIZE];
 	//struct sockaddr_in local, remote;
 	//char remote_ip[16] = "";            // dotted quad IP string
 	int sock_fd=0, net_fd=0;
@@ -273,12 +334,12 @@ int main(int argc, char *argv[]) {
 		// data from tun/tap: just read it and write it to the network
 		if (FD_ISSET(tap_fd, &rd_set)) {
 
-			nread = cread(tap_fd, buffer, BUFSIZE);
+			nread = cread(tap_fd, buffer, BUFFER_SIZE);
 
 			stats_tap++;
 			con("LORATUN %lu: Read %d bytes from the tap interface\n", stats_tap, nread);
 
-			debug(buffer, nread);
+			printf("READ "); debug(buffer, nread);
 
 			// *** debug: save binary packet to file
 			FILE *fd=fopen("1packet.bin", "w");
@@ -286,55 +347,38 @@ int main(int argc, char *argv[]) {
 			fclose(fd);
 			ret=system("od -Ax -tx1 -v 1packet.bin > 1packet.hex");
 
-
-			/*
-			struct field_values {
-				uint8_t ipv6_version;
-				uint8_t ipv6_traffic_class;
-				uint32_t ipv6_flow_label;
-				size_t ipv6_payload_length;
-				uint8_t ipv6_next_header;
-				uint8_t ipv6_hop_limit;
-				uint8_t ipv6_dev_prefix[8];
-				uint8_t ipv6_dev_iid[8];
-				uint8_t ipv6_app_prefix[8];
-				uint8_t ipv6_app_iid[8];
-				uint16_t udp_dev_port;
-				uint16_t udp_app_port;
-				size_t udp_length;
-				uint16_t udp_checksum;
-				uint8_t payload[SIZE_MTU_IPV6]; 
-			};
-			*/
-			struct field_values ipv6packet = {0};
-
-
-			ipv6packet.ipv6_version=6;
-			ipv6packet.ipv6_next_header=17;
-			ipv6packet.ipv6_hop_limit=0xFF;
-			ipv6packet.udp_dev_port=BUF2NUNIT16(buffer, 40);
-			ipv6packet.udp_app_port=BUF2NUNIT16(buffer, 42); // 43690;
-			ipv6packet.udp_length=SIZE_UDP+(nread-48);
-
-			memcpy(&(ipv6packet.ipv6_dev_prefix), &buffer[8], 16); // copiar dirección IPv6 origen
-			memcpy(&(ipv6packet.ipv6_app_prefix), &buffer[24], 16); // copiar dirección IPv6 destino
-			memcpy(&(ipv6packet.payload), &buffer[48], nread-48); // copiar dirección IPv6 destino
-			memcpy(&(ipv6packet.udp_checksum), &buffer[46], 1); // copiar checksum
-
-			ipv6packet.udp_length=BUF2NUNIT16(buffer, 44);
-			ipv6packet.udp_checksum=BUF2NUNIT16(buffer, 46);
-
-			printf("********** %d %d\n", ipv6packet.udp_dev_port, ipv6packet.udp_app_port);
-			printf("********** %x %x\n", ipv6packet.udp_length, ipv6packet.udp_checksum);
-			debug((unsigned char *)&ipv6packet, sizeof(ipv6packet));
-
 			uint8_t schc_packet[SIZE_MTU_IPV6];
 			size_t  schc_packet_len;
-			int ret=schc_compress(&ipv6packet, (uint8_t *)&schc_packet, (size_t *)&schc_packet_len);
 
-			printf("*******ret=%d len=%d\n", ret, (int) schc_packet_len);
-			debug(schc_packet, schc_packet_len);
+			// compress
+			{
 
+				struct field_values p = {0};
+
+				if (!buffer2fields((unsigned char *)&buffer, &nread, &p)) {
+					int ret=schc_compress(&p, (uint8_t *)&schc_packet, (size_t *)&schc_packet_len);
+					//printf("schc_compress ret=%d newlen=%d\n", ret, (int) schc_packet_len);
+					if (!ret) {
+						printf("SCHC "); debug(schc_packet, schc_packet_len);
+					}
+				}
+
+			}
+
+			// decompress
+			{
+
+				struct field_values p = {0};
+
+				int len=0;
+				int ret=schc_decompress((uint8_t *)&schc_packet, schc_packet_len, (struct field_values *)&p);
+				//printf("schc_decompress ret=%d\n", ret);
+				//debug((unsigned char *)&p, p.udp_length + offsetof(typeof(p), payload) - 0x08);
+				if (!ret && !fields2buffer(&p, (unsigned char *)&buffer, (int *)&len)) {
+					printf("UNSC "); debug(buffer, len);
+				}
+
+			}
 
 /*
 

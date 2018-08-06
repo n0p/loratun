@@ -1005,8 +1005,6 @@ int schc_decompress(uint8_t *schc_packet, uint8_t schc_packet_len, struct field_
 		fv->ipv6_payload_length = payload_length + SIZE_UDP;
 		fv->udp_length = payload_length  + SIZE_UDP;
 
-		printf("************** payload_length=%d \n", (int)payload_length);
-
 		compute_length = 0;
 	}
 
