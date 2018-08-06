@@ -1,4 +1,7 @@
 modem/test
+udp6test
+schc/test
+
 
 # Prerequisites
 *.d
