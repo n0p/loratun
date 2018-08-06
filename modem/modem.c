@@ -55,7 +55,7 @@ int resp_read(char* response)
 	if (n<=1) return resp_read(response); // is the buffer empty?
 	if (strncmp("\r\n", line, 2) == 0 ) return resp_read(response); // is it an empty line?
 	line[n]=0;
-	//printf("SERIAL DEBUG: GOT %d bytes: %s \n", n, line);
+	printf("SERIAL DEBUG: GOT %d bytes: %s \n", n, line);
 	
 	if (strncmp("OK", line, 2) == 0 ) return 1;
 	
@@ -227,7 +227,34 @@ int check_loratun_modem_recv(char *data) {
  */
 int loratun_modem_send(char *data, int len) {
 	if ( get_init_status() < 0 ) return -1;
+	char* cleanbuf;
+	cleanbuf = malloc(2048);
 	
+	if (!loratun_modem_check_joined()) {
+		printf ("Send error: Not joined\n");
+		return -1;
+	}
+	
+	sprintf(cleanbuf, "AT+SENDB=10:\n");
+	
+	// This is to hex-print a binary array
+	const char * hex = "0123456789abcdef";
+	unsigned char * pin = data;
+	unsigned char * ptr = cleanbuf + strlen(cleanbuf) -1;
+	int i = 0;
+	for(; i < len-1; ++i){
+		*ptr++ = hex[(*pin>>4)&0xF];
+		*ptr++ = hex[(*pin++)&0xF];
+		//*ptr++ = ':';
+	}
+	*ptr++ = hex[(*pin>>4)&0xF];
+	*ptr++ = hex[(*pin)&0xF];
+	*ptr = '\n';
+	
+	printf("DEBUG sending: %s\n", cleanbuf);
+	
+	serial_write(fd, cleanbuf, strlen(cleanbuf));
+	int code = resp_read(cleanbuf);
 	return 0;
 }
 
@@ -246,6 +273,7 @@ int loratun_modem_destroy() {
 
 /*
  * Modem management loop
+ * TODO: Implement async behaviour
  */
 int loratun_modem(List *param){
 	int abort = 0;
@@ -272,7 +300,7 @@ int loratun_modem(List *param){
 			case 1:
 				printf("Loop(): RECV got data!\n");
 				errcount = 0;
-				/**** TODO: GET DATA AND CALLBACK() ****/
+				loratun_modem_recv(pktbuf, strlen(pktbuf));
 				break;
 			case -5:
 				perror("Loop(): Could not RECV: Not joined");
@@ -287,6 +315,11 @@ int loratun_modem(List *param){
 			errcount++;
 		}
 
+		sleep(1);
+		
+		//** FOR TESTING AND DEBUG PURPOSES **//
+		char testpkt [] = {0x07, 0x40, 0xD4, 0x6C, 0x48, 0x4F, 0x4C, 0x40, 0x21, 0x00};
+		loratun_modem_send(testpkt, sizeof(testpkt));
 		sleep(1);
 		
 		if (errcount > 5) {

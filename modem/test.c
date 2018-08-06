@@ -5,6 +5,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+int loratun_modem_recv(char *data, int len)
+{
+	printf("test.c: we got a callback with %d bytes\n Contents: %s\n", len, data);
+	return 0;
+}
+
 int main() {
 
 	List *param=listNew();
@@ -73,17 +79,20 @@ int main() {
 	configAdd("AT+DADDR", "06:c6:f5:c0");
 	configAdd("AT+APPSKEY", "81:3f:2e:ad:c7:ec:ce:26:ae:b2:33:87:a9:b9:cb:45");
 	configAdd("AT+ADR", "0");
-	configAdd("AT+DR", "2");
+	configAdd("AT+DR", "7");
 	configAdd("AT+DCS", "0");
 	configAdd("AT+TXP", "3");
 	configAdd("AT+CLASS", "C");
 	configAdd("AT+NJM", "1");
 	configList();
 
+	char testpkt [] = {0x07, 0x40, 0xD4, 0x6C, 0x48, 0x4F, 0x4C, 0x40, 0x21, 0x00};
+	
 	if (signal(SIGINT,  sig_handler) == SIG_ERR) perror("\ncan't catch SIGINT\n");
 	if (signal(SIGQUIT, sig_handler) == SIG_ERR) perror("\ncan't catch SIGQUIT\n");
 
 	loratun_modem(param);
+	loratun_modem_send(testpkt, sizeof(testpkt)); // TODO: we cannot call this function since we are locked in a loop
 	
 	sig_handler(SIGINT);
 
