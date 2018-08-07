@@ -1,5 +1,6 @@
 #include "modem.h"
 #include "../lib/serial.h"
+#include "../lib/debug.h"
 
 int fd=0;
 int line_buf_pos=0;
@@ -27,8 +28,9 @@ int line_read(char *line) {
 	while (1) {
 		n=serial_read(fd, (char *)&line_buf+line_buf_pos, MAX_LINE - line_buf_pos);
 		if (n<0) return n;
+		debug(line_buf,strlen(line_buf));
 		for (i=0;i<n;i++)
-			if (line_buf[line_buf_pos+i]=='\n') {
+			if ((line_buf[line_buf_pos+i]=='\n')||(line_buf[line_buf_pos+i]=='\r')) {
 				int aux=line_buf_pos+n;
 				memcpy(line, line_buf, aux);
 				line_buf_pos=0;
@@ -51,36 +53,42 @@ int resp_read(char* response)
 	if ( get_init_status() < 0 ) return -1;
 	
 	char line[MAX_LINE+1];
-	int n=line_read((char *)&line);
+	int n=line_read(line);
+	
+	printf("resp_read() - ");
+	debug(line,n);
+	
 	if (n<=1) return resp_read(response); // is the buffer empty?
 	if (strncmp("\r\n", line, 2) == 0 ) return resp_read(response); // is it an empty line?
+	if (strncmp("\r", line, 1) == 0 ) return resp_read(response); // is it an empty line?
+	if (strncmp("\n", line, 1) == 0 ) return resp_read(response); // is it an empty line?
 	line[n]=0;
 	printf("SERIAL DEBUG: GOT %d bytes: %s \n", n, line);
 	
 	if (strncmp("OK", line, 2) == 0 ) return 1;
 	
 	if (strncmp("AT_ERROR", line, 8) == 0 ) {
-		perror ("Modem: generic error");
+		printf ("Modem: generic error\n");
 		return -1;
 	}
 	if (strncmp("AT_PARAM_ERROR", line, 14) == 0 ) {
-		perror ("Modem: AT parameter error");
+		printf ("Modem: AT parameter error\n");
 		return -2;
 	}
 	if (strncmp("AT_BUSY_ERROR", line, 13) == 0 ) {
-		perror ("Modem: busy");
+		printf ("Modem: busy\n");
 		return -3;
 	}
 	if (strncmp("AT_TEST_PARAM_OVERFLOW", line, 22) == 0 ) {
-		perror ("Modem: command parameter too long");
+		printf ("Modem: command parameter too long\n");
 		return -4;
 	}
 	if (strncmp("AT_NO_NETWORK_JOINED", line, 20) == 0 ) {
-		perror ("Modem: not joined");
+		printf ("Modem: not joined\n");
 		return -5;
 	}
 	if (strncmp("AT_RX_ERROR", line, 11) == 0 ) {
-		perror ("Modem: error during RX");
+		printf ("Modem: error during RX\n");
 		return -6;
 	}
 	strncpy (response, line, strlen(line)-2); // -2 to avoid copying \r\n
@@ -94,8 +102,10 @@ int loratun_modem_check_joined()
 {
 	if ( get_init_status() < 0 ) return -1;
 	
+	usleep(100000);
 	printf("Checking JOIN status\n");
 	serial_write(fd, "AT+NJS=?\n", 9);
+	usleep(100000);
 	resp_read(scrapbuf);
 	if (scrapbuf[0] == '0') { 
 		printf("We are OFFline\n");
@@ -117,7 +127,7 @@ int loratun_modem_retry_join()
 	if ( get_init_status() < 0 ) return -1;
 	printf("Sending JOIN request\n");
 	serial_write(fd, "AT+JOIN\n", 8);
-	sleep(1);
+	usleep(100000);
 	resp_read(scrapbuf);
 	return 0;
 }
@@ -127,9 +137,9 @@ int loratun_modem_retry_join()
  * configure the modem and join the network
  */
 int loratun_modem_init(List *param) {
-	char equals = '=';
-	char newline = '\n';
-	char* serport;
+	uint8_t equals = '=';
+	uint8_t newline = '\n';
+	uint8_t* serport;
 	
 	Node *n=param->first;
 	while (n){ // Iterate and parse all config values
@@ -166,6 +176,7 @@ int loratun_modem_init(List *param) {
 				serial_write(fd, &equals, 1);
 				serial_write(fd, c->value, strlen(c->value));
 				serial_write(fd, &newline, 1);
+				usleep(100000);
 				resp_read(scrapbuf);
 			} else printf("Config Key %s is not an AT command\n", c->key);
 			n=n->sig;
@@ -188,9 +199,9 @@ int loratun_modem_init(List *param) {
 /*
  * Try to rx a packet from the network
  */
-int check_loratun_modem_recv(char *data) {
+int check_loratun_modem_recv(uint8_t *data) {
 	if ( get_init_status() < 0 ) return -1;
-	char* cleanbuf;
+	uint8_t* cleanbuf;
 	cleanbuf = malloc(2048);
 	
 	serial_write(fd, "AT+RECVB=?\n", 11);
@@ -225,9 +236,9 @@ int check_loratun_modem_recv(char *data) {
 /*
  * Send a packet to the network
  */
-int loratun_modem_send(char *data, int len) {
+int loratun_modem_send(uint8_t *data, int len) {
 	if ( get_init_status() < 0 ) return -1;
-	char* cleanbuf;
+	uint8_t* cleanbuf;
 	cleanbuf = malloc(2048);
 	
 	if (!loratun_modem_check_joined()) {
@@ -238,9 +249,9 @@ int loratun_modem_send(char *data, int len) {
 	sprintf(cleanbuf, "AT+SENDB=10:\n");
 	
 	// This is to hex-print a binary array
-	const char * hex = "0123456789abcdef";
-	unsigned char * pin = data;
-	unsigned char * ptr = cleanbuf + strlen(cleanbuf) -1;
+	const uint8_t * hex = "0123456789abcdef";
+	uint8_t * pin = data;
+	uint8_t * ptr = cleanbuf + strlen(cleanbuf) -1;
 	int i = 0;
 	for(; i < len-1; ++i){
 		*ptr++ = hex[(*pin>>4)&0xF];
@@ -277,11 +288,11 @@ int loratun_modem_destroy() {
  */
 int loratun_modem(List *param){
 
-	pthread_mutex_lock(&send_mutex);
+//	pthread_mutex_lock(&send_mutex);
 
 	int abort = 0;
 	int errcount = 0;
-	char* pktbuf;
+	uint8_t* pktbuf;
 	pktbuf = malloc(2048);
 	int initerror = loratun_modem_init(param);
 	
@@ -318,12 +329,12 @@ int loratun_modem(List *param){
 			errcount++;
 		}
 
-		pthread_mutex_unlock(&send_mutex);
+//		pthread_mutex_unlock(&send_mutex);
 		sleep(1);
-		pthread_mutex_lock(&send_mutex);
+//		pthread_mutex_lock(&send_mutex);
 		
 		//** FOR TESTING AND DEBUG PURPOSES **//
-		char testpkt [] = {0x07, 0x40, 0xD4, 0x6C, 0x48, 0x4F, 0x4C, 0x40, 0x21, 0x00};
+		uint8_t testpkt [] = {0x07, 0x40, 0xD4, 0x6C, 0x48, 0x4F, 0x4C, 0x40, 0x21, 0x00};
 		loratun_modem_send(testpkt, sizeof(testpkt));
 		sleep(1);
 		

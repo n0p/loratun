@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-int loratun_modem_recv(char *data, int len)
+int loratun_modem_recv(uint8_t *data, int len)
 {
 	printf("test.c: we got a callback with %d bytes\n Contents: %s\n", len, data);
 	return 0;
@@ -86,7 +86,7 @@ int main() {
 	configAdd("AT+NJM", "1");
 	configList();
 
-	char testpkt [] = {0x07, 0x40, 0xD4, 0x6C, 0x48, 0x4F, 0x4C, 0x40, 0x21, 0x00};
+	uint8_t testpkt [] = {0x07, 0x40, 0xD4, 0x6C, 0x48, 0x4F, 0x4C, 0x40, 0x21, 0x00};
 	
 	if (signal(SIGINT,  sig_handler) == SIG_ERR) perror("\ncan't catch SIGINT\n");
 	if (signal(SIGQUIT, sig_handler) == SIG_ERR) perror("\ncan't catch SIGQUIT\n");

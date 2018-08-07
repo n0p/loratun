@@ -2,6 +2,7 @@
 #define __MODEM_H
 
 #include <stdio.h>
+#include <stdint.h>
 
 #include "../lib/list.h"
 //#include "../lib/debug.h"
@@ -17,8 +18,8 @@ typedef struct config Config;
 int loratun_modem(List *param);
 int loratun_modem_check_joined();
 int loratun_modem_retry_join();
-extern int loratun_modem_recv(char *data, int len); // callback
-int loratun_modem_send(char *data, int len);
+extern int loratun_modem_recv(uint8_t *data, int len); // callback
+int loratun_modem_send(uint8_t *data, int len);
 int loratun_modem_destroy();
 
 #endif
