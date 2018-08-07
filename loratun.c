@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 #include <signal.h>
 #include <unistd.h>
 #include <net/if.h>
@@ -88,7 +89,7 @@ int tun_alloc(char *dev, int if_flags) {
 }
 
 // read routine that checks for errors and exits if an error is returned
-int cread(int fd, unsigned char *buf, int n) {
+int cread(int fd, uint8_t *buf, int n) {
 	int nread;
 	if ((nread=read(fd, buf, n)) < 0) {
 		perror("Reading data");
@@ -98,7 +99,7 @@ int cread(int fd, unsigned char *buf, int n) {
 }
 
 // write routine that checks for errors and exits if an error is returned
-int cwrite(int fd, char *buf, int n) {
+int cwrite(int fd, uint8_t *buf, int n) {
 	int nwrite;
 	if ((nwrite=write(fd, buf, n)) < 0) {
 		perror("Writing data");
@@ -108,7 +109,7 @@ int cwrite(int fd, char *buf, int n) {
 }
 
 // ensures we read exactly n bytes, and puts them into "buf" unless EOF
-int read_n(int fd, unsigned char *buf, int n) {
+int read_n(int fd, uint8_t *buf, int n) {
 	int nread;
 	int left = n;
 	while (left > 0) {
@@ -129,9 +130,9 @@ int *modem_thread(void *p) {
 }
 
 // data received from modem 
-int loratun_modem_recv(char *data, int len) {
+int loratun_modem_recv(uint8_t *data, int len) {
 
-	unsigned char buffer[BUFFER_SIZE];
+	uint8_t buffer[BUFFER_SIZE];
 
 	struct field_values p = {0};
 
@@ -141,9 +142,9 @@ int loratun_modem_recv(char *data, int len) {
 
 	int ret=schc_decompress((uint8_t *)data, len, (struct field_values *)&p);
 	//con("[TUN] schc_decompress ret=%d\n", ret);
-	//debug((unsigned char *)&p, p.udp_length + offsetof(typeof(p), payload) - 0x08);
+	//debug((uint8_t *)&p, p.udp_length + offsetof(typeof(p), payload) - 0x08);
 	int buffer_len=0;
-	if (!ret && !fields2buffer(&p, (unsigned char *)&buffer, (int *)&buffer_len)) {
+	if (!ret && !fields2buffer(&p, (uint8_t *)&buffer, (int *)&buffer_len)) {
 		con("[TUN] UNSC "); debug(buffer, buffer_len);
 
 		stats_tap_w++;
@@ -165,7 +166,7 @@ int main(int argc, char *argv[]) {
 
 	int if_flags=IFF_TUN;
 	char if_name[IFNAMSIZ] = "";
-	unsigned char buffer[BUFFER_SIZE];
+	uint8_t buffer[BUFFER_SIZE];
 	int nread;
 
 	// usage: prints usage and exits
@@ -207,7 +208,6 @@ int main(int argc, char *argv[]) {
 				{
 					int p=strpos(optarg, "=");
 					if (p>0) {
-						int vlen=strlen(optarg) - p;
 						optarg[p]=0;
 						modem_config_add(optarg, optarg+p+1);
 					}
@@ -312,7 +312,7 @@ int main(int argc, char *argv[]) {
 			// *** debug: save binary packet to file
 			/*
 				FILE *fd=fopen("1packet.bin", "w");
-				fwrite(buffer, nread, sizeof(unsigned char), fd);
+				fwrite(buffer, nread, sizeof(uint8_t), fd);
 				fclose(fd);
 				ret=system("od -Ax -tx1 -v 1packet.bin > 1packet.hex");
 			*/
@@ -326,7 +326,7 @@ int main(int argc, char *argv[]) {
 				struct field_values p = {0};
 
 				// prepare SCHC fields
-				if (!buffer2fields((unsigned char *)&buffer, &nread, &p)) {
+				if (!buffer2fields((uint8_t *)&buffer, &nread, &p)) {
 					// SCHC compress
 					int ret=schc_compress(&p, (uint8_t *)&schc_packet, (size_t *)&schc_packet_len);
 					//printf("schc_compress ret=%d newlen=%d\n", ret, (int) schc_packet_len);

@@ -5,9 +5,9 @@
 #define BUFFER_SIZE 2048
 
 // convert a IPv6 packet to the struct field_values used by schc_compress
-int buffer2fields(unsigned char *buffer, int *len, struct field_values *p) {
+int buffer2fields(uint8_t *buffer, int *len, struct field_values *p) {
 
-	if (buffer[0] & 0xF0 != 0x60) return 1; // no IPv6 packet
+	if ((buffer[0] & 0xF0) != 0x60) return 1; // no IPv6 packet
 	if (*len > BUFFER_SIZE) return 2; // prevent buffer overrun
 
 	int payload_length=*len - 0x30;
@@ -39,7 +39,7 @@ int buffer2fields(unsigned char *buffer, int *len, struct field_values *p) {
 }
 
 // convert the struct field_values passed by schc_decompress to a IPv6 packet
-int fields2buffer(struct field_values *p, char *buffer, int *len) {
+int fields2buffer(struct field_values *p, uint8_t *buffer, int *len) {
 
 	*len=(int)p->udp_length + 0x28;
 	if (*len > BUFFER_SIZE) return 1; // prevent buffer overflow

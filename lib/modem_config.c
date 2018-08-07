@@ -28,6 +28,7 @@ char *modem_config_get(char *key) {
 		if (!strcmp(c->key, key)) return c->value;
 		n=n->sig;
 	}
+	return NULL;
 }
 
 // modem config print list

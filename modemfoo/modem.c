@@ -6,7 +6,7 @@
 #define false 0
 
 int running=true;
-char *copybuf=NULL;
+uint8_t *copybuf=NULL;
 int copybuf_len;
 
 void copybuf_free() {
@@ -33,7 +33,7 @@ int loratun_modem(List *param) {
 }
 
 // send data from interface to modem
-int loratun_modem_send(char *data, int len) {
+int loratun_modem_send(uint8_t *data, int len) {
 	con("[MODEM] sending %d bytes!\n", len);
 	copybuf_len=len;
 	if (copybuf) free(copybuf);
