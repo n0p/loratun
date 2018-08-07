@@ -88,7 +88,6 @@ int main() {
 	if (signal(SIGINT,  sig_handler) == SIG_ERR) perror("\ncan't catch SIGINT\n");
 	if (signal(SIGQUIT, sig_handler) == SIG_ERR) perror("\ncan't catch SIGQUIT\n");
 
-
 	// thread
 	pthread_t modem_thread_t;
 

@@ -276,6 +276,9 @@ int loratun_modem_destroy() {
  * TODO: Implement async behaviour
  */
 int loratun_modem(List *param){
+
+	pthread_mutex_lock(&send_mutex);
+
 	int abort = 0;
 	int errcount = 0;
 	char* pktbuf;
@@ -315,7 +318,9 @@ int loratun_modem(List *param){
 			errcount++;
 		}
 
+		pthread_mutex_unlock(&send_mutex);
 		sleep(1);
+		pthread_mutex_lock(&send_mutex);
 		
 		//** FOR TESTING AND DEBUG PURPOSES **//
 		char testpkt [] = {0x07, 0x40, 0xD4, 0x6C, 0x48, 0x4F, 0x4C, 0x40, 0x21, 0x00};

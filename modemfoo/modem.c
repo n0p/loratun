@@ -1,28 +1,53 @@
+#include <unistd.h>
+
 #include "../lib/modem.h"
 
+#define true 1
+#define false 0
+
+int running=true;
+char *copybuf=NULL;
+int copybuf_len;
+
+void copybuf_free() {
+	if (copybuf) {
+		free(copybuf);
+		copybuf=NULL;
+	}
+}
+
+// modem loop
 int loratun_modem(List *param) {
-	printf("Modem: Loop\n");
-	//sleep(4);
+	con("[MODEM] started (sample key=%s)\n", modem_config_get("key"));
+	while (running) {
+		usleep(100000);
+		pthread_mutex_lock(&tun_mutex);
+		if (copybuf) {
+			loratun_modem_recv(copybuf, copybuf_len);
+			copybuf_free();
+		}
+		pthread_mutex_unlock(&tun_mutex);
+	}
+	con("[MODEM] finished\n");
 	return 0;
 }
 
-char *loratun_modem_error() {
-	return "";
-}
-
+// send data from interface to modem
 int loratun_modem_send(char *data, int len) {
-	printf("*** voy a enviar len=%d!\n", len);
-	//char *s=malloc((len+10)*sizeof(char));
-	//sprintf(s, "LEN(%d)",len);
-	//memcpy(s, "ECHO:", 5);
-	//memcpy(s+5, data, len);
-	//s[len+5]=0;
-	loratun_modem_recv(data, len);
-	//free(s);
+	con("[MODEM] sending %d bytes!\n", len);
+	copybuf_len=len;
+	if (copybuf) free(copybuf);
+	copybuf=malloc(len);
+	memcpy(copybuf, data, len);
 	return 0;
 }
 
+// modem cleanup
 int loratun_modem_destroy() {
-	printf("Modem: Destroy\n");
+	con("[MODEM] destroy\n");
+	pthread_mutex_lock(&tun_mutex);
+	copybuf_free();
+	pthread_mutex_unlock(&tun_mutex);
+	running=false;
 	return 0;
 }
