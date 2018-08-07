@@ -193,7 +193,7 @@ uint16_t checksum (uint16_t *addr, int len) {
 }
 
 
-uint16_t checksum_udp_ipv6(char *buffer, int length_buffer) {
+uint16_t checksum_udp_ipv6(uint8_t *buffer, int length_buffer) {
 
 	PRINTF("checksum_udp_ipv6 -> preparing pseudo-header\n");
 
@@ -609,7 +609,7 @@ int schc_compress(const struct field_values *ipv6_packet, uint8_t *schc_packet2,
 	/*
 	 * Pointer to the current location of the schc_packet.
 	 */
-	uint8_t offset = 0;
+	//uint8_t offset = 0;
 
 	PRINTF("schc_compress - we enter the function\n");
 
@@ -793,7 +793,7 @@ void schc_DA_not_sent(struct field_values *fv, enum fieldid fieldid, char *tv) {
 
 	// Variables to convert hex string to byte array
 	uint8_t tmp[8];
-	uint8_t *pos = tv;
+	uint8_t *pos = (uint8_t *)tv;
 
 	switch(fieldid) {
 		case IPV6_VERSION:
@@ -814,7 +814,7 @@ void schc_DA_not_sent(struct field_values *fv, enum fieldid fieldid, char *tv) {
 		case IPV6_DEV_PREFIX:
 			// Copy ipv6 address
 			for (int i = 0; i < 8; i++) {
-				sscanf(pos, "%2hhx", &tmp[i]);
+				sscanf((char *)pos, "%2hhx", &tmp[i]);
 				pos+=2;
 			}	
 			memcpy(fv->ipv6_dev_prefix, tmp, 8);
@@ -822,7 +822,7 @@ void schc_DA_not_sent(struct field_values *fv, enum fieldid fieldid, char *tv) {
 		case IPV6_DEVIID:
 			// Copy ipv6 address
 			for (int i = 0; i < 8; i++) {
-				sscanf(pos, "%2hhx", &tmp[i]);
+				sscanf((char *)pos, "%2hhx", &tmp[i]);
 				pos+=2;
 			}
 			memcpy(fv->ipv6_dev_iid, tmp, 8);
@@ -830,7 +830,7 @@ void schc_DA_not_sent(struct field_values *fv, enum fieldid fieldid, char *tv) {
 		case IPV6_APP_PREFIX:
 			// Copy ipv6 address
 			for (int i = 0; i < 8; i++) {
-				sscanf(pos, "%2hhx", &tmp[i]);
+				sscanf((char *)pos, "%2hhx", &tmp[i]);
 				pos+=2;
 			}
 			memcpy(fv->ipv6_app_prefix, tmp, 8);
@@ -838,7 +838,7 @@ void schc_DA_not_sent(struct field_values *fv, enum fieldid fieldid, char *tv) {
 		case IPV6_APPIID:
 			// Copy ipv6 address
 			for (int i = 0; i < 8; i++) {
-				sscanf(pos, "%2hhx", &tmp[i]);
+				sscanf((char *)pos, "%2hhx", &tmp[i]);
 				pos+=2;
 			}
 			memcpy(fv->ipv6_app_iid, tmp, 8);
@@ -960,10 +960,10 @@ int schc_decompress(uint8_t *schc_packet, uint8_t schc_packet_len, struct field_
 
 		// Extract rule data
 		enum fieldid fieldid = rules[rule_id][i].fieldid;
-		size_t field_length = rules[rule_id][i].field_length;
-		int field_position = rules[rule_id][i].field_position;
-		enum direction direction = rules[rule_id][i].direction;
-		enum MO MO = rules[rule_id][i].MO;
+		//size_t field_length = rules[rule_id][i].field_length;
+		//int field_position = rules[rule_id][i].field_position;
+		//enum direction direction = rules[rule_id][i].direction;
+		//enum MO MO = rules[rule_id][i].MO;
 		enum CDA CDA = rules[rule_id][i].CDA;
 
 		// Check action
