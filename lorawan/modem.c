@@ -81,32 +81,32 @@ int resp_read(char* response)
 	}
 	
 	if (strncmp("AT_ERROR", line, 8) == 0 ) {
-		printf ("Modem: generic error\n");
+		printf ("Modem resp_read(): generic error\n");
 		free (mline);
 		return -1;
 	}
 	if (strncmp("AT_PARAM_ERROR", line, 14) == 0 ) {
-		printf ("Modem: AT parameter error\n");
+		printf ("Modem resp_read(): AT parameter error\n");
 		free (mline);
 		return -2;
 	}
 	if (strncmp("AT_BUSY_ERROR", line, 13) == 0 ) {
-		printf ("Modem: busy\n");
+		printf ("Modem resp_read(): busy\n");
 		free (mline);
 		return -3;
 	}
 	if (strncmp("AT_TEST_PARAM_OVERFLOW", line, 22) == 0 ) {
-		printf ("Modem: command parameter too long\n");
+		printf ("Modem resp_read(): command parameter too long\n");
 		free (mline);
 		return -4;
 	}
 	if (strncmp("AT_NO_NETWORK_JOINED", line, 20) == 0 ) {
-		printf ("Modem: not joined\n");
+		printf ("Modem resp_read(): not joined\n");
 		free (mline);
 		return -5;
 	}
 	if (strncmp("AT_RX_ERROR", line, 11) == 0 ) {
-		printf ("Modem: error during RX\n");
+		printf ("Modem resp_read(): error during RX\n");
 		free (mline);
 		return -6;
 	}
@@ -129,20 +129,18 @@ int loratun_modem_check_joined()
 {
 	if ( get_init_status() < 0 ) return -1;
 	
-	usleep(100000);
-	printf("Checking JOIN status\n");
 	serial_write(fd, "AT+NJS=?\n", 9);
 	usleep(100000);
 	resp_read(scrapbuf);
 	if (scrapbuf[0] == '0') { 
-		printf("We are OFFline\n");
+		printf("loratun_modem_check_joined(): We are OFFline\n");
 		return 0;
 	}
 	else if (scrapbuf[0] == '1') { 
-		printf("We are ONline\n");
+		printf("loratun_modem_check_joined(): We are ONline\n");
 		return 1;
 	}
-	printf("Unknown response to Network Join Status: %s\n",scrapbuf);
+	printf("loratun_modem_check_joined(): Unknown response to Network Join Status: %s\n",scrapbuf);
 	return -1;
 }
 
@@ -152,7 +150,7 @@ int loratun_modem_check_joined()
 int loratun_modem_retry_join()
 {
 	if ( get_init_status() < 0 ) return -1;
-	printf("Sending JOIN request\n");
+	printf("loratun_modem_retry_join(): Sending JOIN request\n");
 	serial_write(fd, "AT+JOIN\n", 8);
 	usleep(100000);
 	resp_read(scrapbuf);
@@ -174,7 +172,7 @@ int loratun_modem_init(List *param) {
 		if ( ( strlen(c->key) == 10 ) && 
 				 (strncmp("SerialPort", c->key, 10) == 0 ) )
 		{ // Got our serial port
-			printf("Serial port = %s\n", c->value);
+			printf("loratun_modem_init(): Serial port = %s\n", c->value);
 			serport = malloc(strlen(c->value)+1);
 			sprintf(serport, "%s", c->value);
 			break;
@@ -187,7 +185,7 @@ int loratun_modem_init(List *param) {
 		serial_set_interface_attribs(fd, B9600, 0); // set speed, no parity
 		serial_set_blocking(fd, 0); // set blocking
 		
-		printf("Serial opened; sending ATZ reset cmd\n");
+		printf("loratun_modem_init(): Serial opened; sending ATZ reset cmd\n");
 		serial_write(fd, "ATZ\n", 4); // reset the LoRaWAN modem
 		sleep(1); // wait for the modem
 		
@@ -198,18 +196,18 @@ int loratun_modem_init(List *param) {
 		while (n){ // Iterate and parse all config values
 			Config *c=(Config *)n->e;
 			if (strncmp("AT+", c->key, 3) == 0) { // Got a RAW AT config command
-				printf("AT config send %s=%s\n", c->key, c->value);
+				printf("loratun_modem_init(): AT config send %s=%s\n", c->key, c->value);
 				serial_write(fd, c->key, strlen(c->key));
 				serial_write(fd, &equals, 1);
 				serial_write(fd, c->value, strlen(c->value));
 				serial_write(fd, &newline, 1);
 				usleep(100000);
 				resp_read(scrapbuf);
-			} else printf("Config Key %s is not an AT command\n", c->key);
+			} else printf("loratun_modem_init(): Config Key %s is not an AT command\n", c->key);
 			n=n->sig;
 		}
 		
-		printf("Sending JOIN request\n");
+		printf("loratun_modem_init(): Sending JOIN request\n");
 		serial_write(fd, "AT+JOIN\n", 8);
 		resp_read(scrapbuf);
 		return 0;
@@ -233,13 +231,13 @@ int check_loratun_modem_recv(uint8_t *data) {
 	
 	serial_write(fd, "AT+RECVB=?\n", 11);
 	int code = resp_read(cleanbuf);
-	printf ("RECV response: %s\n", cleanbuf);
+	printf ("check_loratun_modem_recv(): response: %s\n", cleanbuf);
 
 	switch (code) {
 		case 1: // command succeeded
-			// printf ("pos:%d sz:%d\n", strcspn(cleanbuf, ":"), strlen(cleanbuf));
-			if (strcspn(cleanbuf, ":") > strlen(cleanbuf)-1 ) { // Do we have something after portnumber?
-				printf ("Got a packet!");
+//			printf ("pos:%d sz:%d\n", strcspn(cleanbuf, ":"), strlen(cleanbuf));
+			if (strcspn(cleanbuf, ":") > strlen(cleanbuf) ) { // Do we have something after portnumber?
+				printf ("check_loratun_modem_recv(): Got a packet!\n");
 				strncpy (data, cleanbuf, strlen(cleanbuf));
 				free(cleanbuf);
 				return 1;
@@ -248,11 +246,11 @@ int check_loratun_modem_recv(uint8_t *data) {
 				return 0;
 			}
 		case -5: // we aren't joined
-			perror("Not joined to any network");
+			printf("check_loratun_modem_recv(): Not joined to any network\n");
 			free(cleanbuf);
 			return -5;
 		default: // some other error
-			perror("Unexpected RX error");
+			printf("check_loratun_modem_recv(): Unexpected RX error\n");
 			free(cleanbuf);
 			return -1;
 	}
@@ -269,10 +267,11 @@ int loratun_modem_send(uint8_t *data, int len) {
 	cleanbuf = malloc(2048);
 	
 	if (!loratun_modem_check_joined()) {
-		printf ("Send error: Not joined\n");
+		printf ("loratun_modem_send(): ERROR: Not joined - Not trying\n");
 		return -1;
 	}
-	
+
+
 	sprintf(cleanbuf, "AT+SENDB=10:\n");
 	
 	// This is to hex-print a binary array
@@ -289,11 +288,34 @@ int loratun_modem_send(uint8_t *data, int len) {
 	*ptr++ = hex[(*pin)&0xF];
 	*ptr = '\n';
 	
-	printf("DEBUG sending: %s\n", cleanbuf);
+	printf("loratun_modem_send(): sending: %s", cleanbuf);
 	
+	usleep(100000);
 	serial_write(fd, cleanbuf, strlen(cleanbuf));
+	usleep(100000);
+	
 	int code = resp_read(cleanbuf);
-	return 0;
+	switch (code) {
+		case -1:
+			printf("loratun_modem_send(): ERROR: AT generic error - I am confused\n");
+			break;
+		case -3: // modem busy
+			printf("loratun_modem_send(): ERROR: Modem is busy!\n");
+			break;
+		case -2: // param error
+			printf("loratun_modem_send(): ERROR: Parameter error!\n");
+			break;
+		case -5: // not joined
+			printf("loratun_modem_send(): ERROR: Disconnected from the network!\n");
+			break;
+		case 1:
+		case 0:
+			printf("loratun_modem_send(): Ok\n");
+			break;
+		default:
+			printf("loratun_modem_send(): Unexpected output from modem: %d\n", code);
+	}
+	return code;
 }
 
 /*
@@ -302,10 +324,10 @@ int loratun_modem_send(uint8_t *data, int len) {
 int loratun_modem_destroy() {
 	if ( get_init_status() < 0 ) return -1;
 	
-	printf("Modem: Destroy\n");
+	printf("loratun_modem_destroy(): Destroy\n");
 	if (fd) serial_close(fd);
 	fd = 0;
-	printf("Modem: Closed serial port\n");
+	printf("loratun_modem_destroy(): Closed serial port\n");
 	return 0;
 }
 
@@ -328,7 +350,7 @@ int loratun_modem(List *param){
 		return initerror;
 	}
 	
-	printf("Modem: Checking joined\n");
+	printf("loratun_modem(): Checking joined\n");
 	loratun_modem_check_joined();
 	
 	printf("Modem: Loop()\n");
