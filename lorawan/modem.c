@@ -119,7 +119,7 @@ int resp_read(char* response)
 //	debug(line,strlen(line));
 
 	free (mline);
-	return 1; // If the modem returns data, there's no error according to the datasheet
+	return 1; // If the modem returns data, there is no error according to the datasheet
 }
 
 /*
@@ -169,8 +169,7 @@ int loratun_modem_init(List *param) {
 	Node *n=param->first;
 	while (n){ // Iterate and parse all config values
 		Config *c=(Config *)n->e;
-		if ( ( strlen(c->key) == 10 ) && 
-				 (strncmp("SerialPort", c->key, 10) == 0 ) )
+		if ( (strncmp("SerialPort", c->key, 10) == 0 ) )
 		{ // Got our serial port
 			printf("loratun_modem_init(): Serial port = %s\n", c->value);
 			serport = malloc(strlen(c->value)+1);
