@@ -28,7 +28,6 @@ int line_read(char *line) {
 	while (1) {
 		n=serial_read(fd, (char *)&line_buf+line_buf_pos, MAX_LINE - line_buf_pos);
 		if (n<0) return n;
-		debug(line_buf,strlen(line_buf));
 		for (i=0;i<n;i++)
 			if ((line_buf[line_buf_pos+i]=='\n')||(line_buf[line_buf_pos+i]=='\r')) {
 				int aux=line_buf_pos+n;
@@ -52,47 +51,75 @@ int resp_read(char* response)
 {
 	if ( get_init_status() < 0 ) return -1;
 	
-	char line[MAX_LINE+1];
+	char * line; // incoming line
+	char * mline; // original buffer position to free()
+	char * tokpos; // final data position to remove trailing \r\n
+	line = malloc(MAX_LINE+1);
 	int n=line_read(line);
+	mline = line;
 	
-	printf("resp_read() - ");
-	debug(line,n);
+//	printf("resp_read() - ");
+//	debug(line,n);
 	
-	if (n<=1) return resp_read(response); // is the buffer empty?
-	if (strncmp("\r\n", line, 2) == 0 ) return resp_read(response); // is it an empty line?
-	if (strncmp("\r", line, 1) == 0 ) return resp_read(response); // is it an empty line?
-	if (strncmp("\n", line, 1) == 0 ) return resp_read(response); // is it an empty line?
+	// is the buffer empty?
+	if (n<=1) return resp_read(response);
+	
+	// remove leading \r\n
+	while ((strncmp("\r", line, 1) == 0 ) || (strncmp("\n", line, 1) == 0 ))
+	{
+		if (strlen(line) == 0 ) return 0;
+//		printf("Moving forward -- ");
+//		debug(line,strlen(line));
+		line++;
+	}
 	line[n]=0;
-	printf("SERIAL DEBUG: GOT %d bytes: %s \n", n, line);
+//	printf("SERIAL DEBUG: GOT %d bytes: %s \n", n, line);
 	
-	if (strncmp("OK", line, 2) == 0 ) return 1;
+	if (strncmp("OK", line, 2) == 0 ) {
+		free (mline);
+		return 1;
+	}
 	
 	if (strncmp("AT_ERROR", line, 8) == 0 ) {
 		printf ("Modem: generic error\n");
+		free (mline);
 		return -1;
 	}
 	if (strncmp("AT_PARAM_ERROR", line, 14) == 0 ) {
 		printf ("Modem: AT parameter error\n");
+		free (mline);
 		return -2;
 	}
 	if (strncmp("AT_BUSY_ERROR", line, 13) == 0 ) {
 		printf ("Modem: busy\n");
+		free (mline);
 		return -3;
 	}
 	if (strncmp("AT_TEST_PARAM_OVERFLOW", line, 22) == 0 ) {
 		printf ("Modem: command parameter too long\n");
+		free (mline);
 		return -4;
 	}
 	if (strncmp("AT_NO_NETWORK_JOINED", line, 20) == 0 ) {
 		printf ("Modem: not joined\n");
+		free (mline);
 		return -5;
 	}
 	if (strncmp("AT_RX_ERROR", line, 11) == 0 ) {
 		printf ("Modem: error during RX\n");
+		free (mline);
 		return -6;
 	}
-	strncpy (response, line, strlen(line)-2); // -2 to avoid copying \r\n
-	return 1;
+	
+	tokpos = strtok(line, "\r\n"); // how far is our \r\n?
+	strncpy (response, line, line-tokpos+1);
+//	printf("line-tokpos=%d\ntokpos-",line-tokpos+1);
+//	debug(tokpos,strlen(tokpos));
+//	printf("line-");
+//	debug(line,strlen(line));
+
+	free (mline);
+	return 1; // If the modem returns data, there's no error according to the datasheet
 }
 
 /*

@@ -1,9 +1,9 @@
 CC = gcc
-CFLAGS = -g -O2 -Wall -D_GNU_SOURCE
+CFLAGS = -g -O0 -ggdb -Wall -D_GNU_SOURCE
 #LDFLAGS = -lpthread -pthread
 
 all:
-	$(CC) ../lib/list.c ../lib/serial.c modem.c test.c -o test
+	$(CC) $(CFLAGS) ../lib/list.c ../lib/serial.c modem.c test.c -o test
 
 test: all
 	./test
