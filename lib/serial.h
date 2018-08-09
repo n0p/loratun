@@ -18,6 +18,7 @@ int serial_set_interface_attribs(int fd, int speed, int parity);
 int serial_set_blocking(int fd, int should_block);
 int serial_open(char* device);
 int serial_read(int fd, char *buf, int len);
+int serial_aread(int fd, char *buf, int len);
 int serial_write(int fd, char *buf, int len);
 void serial_close(int fd);
 
