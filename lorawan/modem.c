@@ -1,6 +1,8 @@
-#include "modem.h"
+#include "../lib/modem.h"
 #include "../lib/serial.h"
 #include "../lib/debug.h"
+
+#define MAX_LINE 1024
 
 int fd=0;
 int line_buf_pos=0;
@@ -168,7 +170,7 @@ int loratun_modem_init(List *param) {
 	
 	Node *n=param->first;
 	while (n){ // Iterate and parse all config values
-		Config *c=(Config *)n->e;
+		ModemConfig *c=(ModemConfig *)n->e;
 		if ( (strncmp("SerialPort", c->key, 10) == 0 ) )
 		{ // Got our serial port
 			printf("loratun_modem_init(): Serial port = %s\n", c->value);
@@ -193,7 +195,7 @@ int loratun_modem_init(List *param) {
 		
 		Node *n=param->first;
 		while (n){ // Iterate and parse all config values
-			Config *c=(Config *)n->e;
+			ModemConfig *c=(ModemConfig *)n->e;
 			if (strncmp("AT+", c->key, 3) == 0) { // Got a RAW AT config command
 				printf("loratun_modem_init(): AT config send %s=%s\n", c->key, c->value);
 				serial_write(fd, c->key, strlen(c->key));

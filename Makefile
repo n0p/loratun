@@ -11,14 +11,11 @@ udp6test:
 loratun:
 	$(CC) $(CFLAGS) $(LDFLAGS) $(MODEM)/modem.c lib/list.c lib/modem_config.c schc/context.c schc/schc.c schc/schc_fields.c loratun.c -o loratun
 
-modemfoo:
-	$(CC) $(CFLAGS) $(LDFLAGS) modemfoo/modem.c -o loratun
-
-foo: $(MODEM) loratun udp6test
+testfoo: all
 	bash -c "sleep 0.5 && ip addr add fd73:ab44:93dd:6b18::/64 dev loratun && ip link set loratun up && ./udp6test" &
 	./loratun -u -d -i loratun -m 'key=sample value'
 
-lora: $(MODEM) loratun udp6test
+testlora: all
 	bash -c "sleep 0.5 && ip addr add fd73:ab44:93dd:6b18::/64 dev loratun && ip link set loratun up && ./udp6test" &
 	./loratun -u -d -i loratun \
 	-m SerialPort=/dev/ttyACM0 \
