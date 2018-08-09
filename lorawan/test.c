@@ -39,7 +39,6 @@ int main() {
 	modem_config_add("AT+TXP", "3");
 	modem_config_add("AT+CLASS", "C");
 	modem_config_add("AT+NJM", "1");
-	modem_config_print();
 
 	uint8_t testpkt [] = {0x07, 0x40, 0xD4, 0x6C, 0x48, 0x4F, 0x4C, 0x40, 0x21, 0x00};
 	

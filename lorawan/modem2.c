@@ -29,7 +29,6 @@ int line_read(char *line) {
 	int n;
 	while (1) {
 		n=serial_read(fd, (char *)&line_buf+line_buf_pos, MAX_LINE - line_buf_pos);
-debug((char *)&line_buf+line_buf_pos, n);
 		if (n<0) return n;
 		for (i=0;i<n;i++)
 			if ((line_buf[line_buf_pos+i]=='\n')||(line_buf[line_buf_pos+i]=='\r')) {
@@ -205,6 +204,7 @@ int loratun_modem_init(List *param) {
 				serial_write(fd, &newline, 1);
 				usleep(100000);
 				resp_read(scrapbuf);
+				// PROBLEMA GRAVE
 			} else printf("loratun_modem_init(): Config Key %s is not an AT command\n", c->key);
 			n=n->sig;
 		}
@@ -333,13 +333,221 @@ int loratun_modem_destroy() {
 	return 0;
 }
 
+enum {
+	STEP_NONE,
+	STEP_RESET,
+	STEP_INIT,
+	STEP_JOIN,
+	STEP_JOIN_CHECK,
+	STEP_JOINED
+};
+
+int step=STEP_NONE;
+
+// send
+int send(char *command) {
+	//printf("send(%d) %s\n", (int)strlen(command), command);
+	return serial_write(fd, command, strlen(command));
+}
+
+// send and change step
+int send_step(char *command, int next_step) {
+	step=next_step;
+	return send(command);
+}
+
+int equals(char *a, char *b) {
+	return (strcmp(a, b)?0:1);
+}
+
+
+
+
+
+
+
+
+
+
+/*
+ * Ask the modem if we already joined the network
+ */
+int loratun_modem_check_joined2()
+{
+	if ( get_init_status() < 0 ) return -1;
+	send("AT+NJS=?\n");
+
+	char buffer[1024];
+	char *line=(char *)&buffer;
+
+	// main working loop
+	while (1) {
+		// read lines
+		int nread=line_read2(line);
+		// ignore empty lines
+		if (nread<=0 || equals(line, "")) continue;
+		if (equals(line, "0")) return 0;
+		else if (equals(line, "1")) return 1;
+		return 2;
+
+debug(line, nread);
+		//return (equals(line, "OK")) return 1;
+		return 0;
+	}
+
+/*
+	resp_read(scrapbuf);
+	if (scrapbuf[0] == '0') { 
+		printf("loratun_modem_check_joined(): We are OFFline\n");
+		return 0;
+	}
+	else if (scrapbuf[0] == '1') { 
+		printf("loratun_modem_check_joined(): We are ONline\n");
+		return 1;
+	}
+	printf("loratun_modem_check_joined(): Unknown response to Network Join Status: %s\n",scrapbuf);
+	return -1;
+*/
+}
+
+
+
+
+
+/*
+ * Read a line from serial fd
+ */
+int line_read2(char *line) {
+	int i, n;
+	while (1) {
+		n=serial_read(fd, (char *)&line_buf + line_buf_pos, MAX_LINE - line_buf_pos);
+		//printf("LINE_READ2"); debug((char *)&line_buf + line_buf_pos, n);
+		if (n<0) return n;
+		for (i=0; i<n; i++)
+			//if ((line_buf[line_buf_pos+i]=='\n')||(line_buf[line_buf_pos+i]=='\r')) {
+			if (line_buf[line_buf_pos+i] == '\n') {
+				int aux=line_buf_pos+n;
+				if (aux > 1 && line_buf[line_buf_pos+i-1]=='\r') aux--;
+				if (aux > 0 && line_buf[line_buf_pos+i]=='\n') aux--;
+				memcpy(line, line_buf, aux);
+				line[aux]=0;
+				line_buf_pos=0;
+				return aux;
+			}
+		line_buf_pos+=n;
+		if (line_buf_pos >= MAX_LINE - 1) return 0; // -1 because we add null terminator
+		//debug(line_buf, line_buf_pos);
+	}
+	return n;
+}
+
+
+//***********************************************************************************************
+int loratun_modem2(List *param){
+
+	char *serport=modem_config_get("SerialPort");
+	char buffer[1024];
+	char *line=(char *)&buffer;
+	int i;
+
+ 	fd=serial_open(serport);
+	if (fd) {
+		
+		printf("loratun_modem(): Serial opened; sending ATZ reset cmd\n");
+
+		// set speed, no parity, no blocking
+		serial_set_interface_attribs(fd, B9600, 0);
+
+		send_step("ATZ\n", STEP_RESET);
+		
+		// wait for modem reset and discard every byte received in the next 500ms
+		for (i=0; i<5; i++) {
+			serial_aread(fd, line, MAX_LINE);
+			usleep(100000);
+		}
+
+		// set blocking enabled
+		serial_set_blocking(fd, 1);
+
+		// send first AT
+		send_step("AT\n", STEP_INIT);
+
+		// initialize first parameter
+		Node *n=param->first;
+
+		// main working loop
+		while (1) {
+
+			// read lines
+			int nread=line_read2(line);
+
+			// ignore empty lines
+			if (nread<=0 || equals(line, "")) continue;
+
+			//printf("RECEIVED "); debug(line, nread);
+
+			// state machine
+			switch (step) {
+
+			// we are initializing
+			case STEP_INIT:
+				if (equals(line, "OK")) {
+					if (n) {
+						do {
+							ModemConfig *c=(ModemConfig *)n->e;
+							if (strncmp("AT+", c->key, 3) == 0) { // Got a RAW AT config command
+								printf("loratun_modem(): AT config send %s=%s\n", c->key, c->value);
+								send(c->key);
+								send("=");
+								send(c->value);
+								send("\n");
+								n=n->sig;
+								break;
+							}
+							n=n->sig;
+						} while (n);
+					} else {
+						printf("loratun_modem(): Sending JOIN request\n");
+						send_step("AT+JOIN\n", STEP_JOIN);
+					}
+				} else {
+					// errors here
+				}
+				break;
+
+			// i need to join
+			case STEP_JOIN:
+				if (equals(line, "OK")) {
+					printf("loratun_modem(): JOINED!\n");
+					printf("Joined!");
+
+					int res_joined2=loratun_modem_check_joined2();
+					printf("******res_joined2=%d\n", res_joined2);
+					//step=STEP_JOINED;
+
+				} else {
+					// errors here
+				}
+				break;
+
+			// im joined, do things
+			case STEP_JOINED:
+				break;
+
+			}
+		}
+
+	}
+
+	return 0;
+
+}
+
 /*
  * Modem management loop
  * TODO: Implement async behaviour
  */
 int loratun_modem(List *param){
-
-//	pthread_mutex_lock(&send_mutex);
 
 	int abort = 0;
 	int errcount = 0;
