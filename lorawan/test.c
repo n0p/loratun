@@ -7,8 +7,7 @@
 
 List *modem_config;
 
-int loratun_modem_recv(uint8_t *data, int len)
-{
+int loratun_modem_recv(uint8_t *data, int len) {
 	printf("test.c: we got a callback with %d bytes\n Contents: %s\n", len, data);
 	return 0;
 }
@@ -18,45 +17,22 @@ int main() {
 	modem_config_init();
 
 	void sig_handler(int signo) {
-
 		printf("\n");
-
 		loratun_modem_destroy();
-
 		modem_config_destroy();
-
 		exit(0);
-
 	}
-
-	/*
-	 * AT+APPKEY=ce:e3:fa:63:e5:ee:e8:ff:28:dd:08:69:ca:48:87:1c
-	 * AT+APPEUI=00:00:00:00:00:00:00:02
-	 * AT+NWKSKEY=cb:c9:a5:4e:de:35:4e:c9:33:61:cf:01:c3:71:e7:e2
-	 * AT+DADDR=06:c6:f5:c0
-	 * AT+APPSKEY=81:3f:2e:ad:c7:ec:ce:26:ae:b2:33:87:a9:b9:cb:45
-	 * AT+NWKID=03:02:01:00
-	 * AT+DEUI=31:31:35:38:56:37:89:18
-	 * AT+ADR=0
-	 * AT+DR=2
-	 * AT+DCS=0
-	 * AT+TXP=3
-	 * AT+CLASS=C
-	 * AT+NJM=1
-	 * AT+JOIN 
-	 */
 
 	modem_config_add("SerialPort", "/dev/ttyACM0");
 	/* // App keys for pleiades gateway
-	configAdd("AT+APPKEY", "ce:e3:fa:63:e5:ee:e8:ff:28:dd:08:69:ca:48:87:1c");
-	configAdd("AT+NWSKEY", "cb:c9:a5:4e:de:35:4e:c9:33:61:cf:01:c3:71:e7:e2");
-	configAdd("AT+DADDR", "06:c6:f5:c0");
-	configAdd("AT+APPSKEY", "81:3f:2e:ad:c7:ec:ce:26:ae:b2:33:87:a9:b9:cb:45");
+	modem_config_add("AT+APPKEY", "ce:e3:fa:63:e5:ee:e8:ff:28:dd:08:69:ca:48:87:1c");
+	modem_config_add("AT+NWSKEY", "cb:c9:a5:4e:de:35:4e:c9:33:61:cf:01:c3:71:e7:e2");
+	modem_config_add("AT+DADDR", "06:c6:f5:c0");
+	modem_config_add("AT+APPSKEY", "81:3f:2e:ad:c7:ec:ce:26:ae:b2:33:87:a9:b9:cb:45");
 	*/
 	// App keys for TTN test app
-	configAdd("AT+APPKEY", "35:4D:D6:24:10:56:7E:3C:8F:97:75:2C:EA:F4:05:F1");
-	configAdd("AT+APPEUI", "70:B3:D5:7E:D0:00:99:FB");
-	
+	modem_config_add("AT+APPKEY", "35:4D:D6:24:10:56:7E:3C:8F:97:75:2C:EA:F4:05:F1");
+	modem_config_add("AT+APPEUI", "70:B3:D5:7E:D0:00:99:FB");
 	modem_config_add("AT+ADR", "0");
 	modem_config_add("AT+DR", "7");
 	modem_config_add("AT+DCS", "0");
