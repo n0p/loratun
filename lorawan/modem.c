@@ -1,6 +1,6 @@
 #include "../lib/modem.h"
 #include "../lib/serial.h"
-#include "../lib/debug.h"
+//#include "../lib/debug.h"
 
 #define MAX_LINE 1024
 
@@ -29,7 +29,6 @@ int line_read(char *line) {
 	int n;
 	while (1) {
 		n=serial_read(fd, (char *)&line_buf+line_buf_pos, MAX_LINE - line_buf_pos);
-debug((char *)&line_buf+line_buf_pos, n);
 		if (n<0) return n;
 		for (i=0;i<n;i++)
 			if ((line_buf[line_buf_pos+i]=='\n')||(line_buf[line_buf_pos+i]=='\r')) {
@@ -274,6 +273,7 @@ int loratun_modem_send(uint8_t *data, int len) {
 	}
 
 
+	usleep(200000);
 	sprintf(cleanbuf, "AT+SENDB=10:\n");
 	
 	// This is to hex-print a binary array
@@ -299,7 +299,7 @@ int loratun_modem_send(uint8_t *data, int len) {
 	int code = resp_read(cleanbuf);
 	switch (code) {
 		case -1:
-			printf("loratun_modem_send(): ERROR: AT generic error - I am confused\n");
+			printf("loratun_modem_send(): ERROR: Generic: Modem might be busy\n");
 			break;
 		case -3: // modem busy
 			printf("loratun_modem_send(): ERROR: Modem is busy!\n");
