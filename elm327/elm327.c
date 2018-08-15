@@ -8,6 +8,9 @@
 #include "../lib/serial.h"
 #include "../lib/debug.h"
 
+#include "isend.h"
+
+#define DELIMITER '\n'
 #define MAX_LINE 1024
 
 #define true  1
@@ -54,16 +57,16 @@ int strpos(char *haystack, char *needle) {
 	return -1;
 }
 
-// send
-int send(char *command) {
-	//con("send(%d) %s\n", (int)strlen(command), command);
+// send command
+int cmd_send(char *command) {
+	//con("cmd_send(%d) %s\n", (int)strlen(command), command);
 	return serial_write(fd, command, strlen(command));
 }
 
-// send and change step
-int send_step(char *command, int next_step) {
+// send command and change step
+int cmd_send_step(char *command, int next_step) {
 	step=next_step;
-	return send(command);
+	return cmd_send(command);
 }
 
 // coompare strings and get natural boolean
@@ -76,9 +79,9 @@ int line_read(char *line) {
 	int i, n=0;
 	while (1) {
 		// first, read the buffer for pending lines
-		for (i=line_buf_pos; i<line_buf_len; i++) if (line_buf[i] == '\r') {
+		for (i=line_buf_pos; i<line_buf_len; i++) if (line_buf[i] == DELIMITER) {
 			memcpy(line, line_buf, i);
-			line[i]=0; // replace \r with \0
+			line[i]=0; // replace DELIMITER with \0
 			int nrest=line_buf_len-i-1;
 			memcpy(line_buf, line_buf+i+1, nrest);
 			line_buf_len-=i+1;
@@ -90,7 +93,7 @@ int line_read(char *line) {
 		if (line_buf_pos >= MAX_LINE) return -2; // buffer limit reached
 		n=serial_read(fd, (char *)&line_buf + line_buf_len, MAX_LINE - line_buf_len);
 		line_buf_len+=n;
-		//con("BUFFER read=%d pos=%d len=%d ", n, line_buf_pos, line_buf_len); debug((char *)&line_buf, line_buf_len);
+		con("BUFFER read=%d pos=%d len=%d ", n, line_buf_pos, line_buf_len); debug((char *)&line_buf, line_buf_len);
 		if (n<0) break;
 	}
 	return n;
@@ -106,18 +109,22 @@ int main(int argc, char **argv) {
 	char buffer[MAX_LINE];
 	char next_pid_req_buffer[MAX_LINE];
 	char *next_pid_req=(char *)&next_pid_req_buffer;
+	char dst_addr_buffer[64]="";
+	char *dst_addr=(char *)dst_addr_buffer;
+	uint16_t dst_port=43690;
 	unsigned char bin[MAX_LINE / 3];
 	char *line=(char *)&buffer;
 	int reads=0;
-	unsigned char engine_load=0;
-	int speed  =0, rpm  =0;
-	int speed_t=0, rpm_t=0;
+	unsigned char engine_load=0, speed=0;
+	int rpm=0;
+	long speed_t=0, rpm_t=0, engine_load_t=0;
 	int working=true;
 
 	// destroy
 	int destroy() {
 		if (debug_level>0) con("Cleaning up\n");
 		if (fd) serial_close(fd);
+		if (dst_addr) isend_destroy();
 		fd=0;
 		return 0;
 	}
@@ -146,15 +153,17 @@ int main(int argc, char **argv) {
 		fprintf(to, "%s <serialport> [-a <atcmd>] [-d <level>]\n", argv[0]);
 		fprintf(to, "%s -h\n", argv[0]);
 		fprintf(to, "\n");
-		fprintf(to, "-a <atcmd>   send an AT command at startup\n");
-		fprintf(to, "-d <level>   outputs debug information while running\n");
-		fprintf(to, "-h           prints this help text\n");
+		fprintf(to, "-a <atcmd>      send an AT command at startup\n");
+		fprintf(to, "-s <ipv6addr>   send data over IPv6/UDP\n");
+		fprintf(to, "-p <ipv6port>   specify port (actual: %d)\n", dst_port);
+		fprintf(to, "-d <level>      outputs debug information while running\n");
+		fprintf(to, "-h              prints this help text\n");
 		exit(to==stdout?0:1);
 	}
 
 	// check command line options
 	int option;
-	while ((option = getopt(argc, argv, "a:d:h")) > 0) {
+	while ((option = getopt(argc, argv, "ha:d:s:p:")) > 0) {
 		switch (option) {
 		case 'h':
 			usage(stdout);
@@ -164,6 +173,12 @@ int main(int argc, char **argv) {
 			break;
 		case 'a':
 			config_add("at", optarg);
+			break;
+		case 's':
+			strcpy(dst_addr, optarg);
+			break;
+		case 'p':
+			dst_port=atoi(optarg);
 			break;
 		default:
 			break;
@@ -215,12 +230,53 @@ int main(int argc, char **argv) {
 	int retry_first_pid() {
 		if (pid_req_retries<3) {
 			pid_req_retries++;
-			send_step("0100\r", STEP_PID_FIRST);
+			cmd_send_step("0100\r", STEP_PID_FIRST);
 		} else {
 			working=false;
 		}
 		return working;
 	}
+
+	// send string over internet
+	void send_string(char *s) {
+		isend_add((uint8_t *)s, strlen(s));
+	}
+
+	// send op over internet
+	void send_op(uint8_t op) {
+		isend_add((uint8_t *)&op, 1);
+	}
+
+	// send op + 1 byte over internet
+	void send_op1(uint8_t op, uint8_t data) {
+		struct Packet {
+			uint8_t op;
+			uint8_t data;
+		} __attribute__((packed)) p;
+		uint8_t *b=(uint8_t *)&p;
+		p.op=op;
+		p.data=data;
+		isend_add(b, 2);
+	}
+
+	// send op + 2 bytes over internet
+	void send_op2(uint8_t op, uint16_t data) {
+		struct Packet {
+			uint8_t op;
+			uint16_t data;
+		} __attribute__((packed)) p;
+		uint8_t *b=(uint8_t *)&p;
+		p.op=op;
+		p.data=htons(data);
+		isend_add(b, 3);
+	}
+
+	// if destination declared, initialize internet socket
+	if (dst_addr)
+		if (isend_init(dst_addr, dst_port) != 0) {
+			perror("[client] creating socket");
+			exit(11);
+		}
 
 	// start connection
 	con("Connecting to %s\n", serport);
@@ -235,7 +291,7 @@ int main(int argc, char **argv) {
 		// set blocking disabled
 		serial_set_blocking(fd, 0);
 
-		send_step("ATZ\r", STEP_RESET);
+		cmd_send_step("ATZ\r", STEP_RESET);
 		
 		// wait for modem reset and discard every byte received in the next 1000ms
 		for (i=0; i<10; i++) {
@@ -244,7 +300,7 @@ int main(int argc, char **argv) {
 			usleep(100000);
 		}
 
-		send("ATD\r");
+		cmd_send("ATD\r");
 
 		// wait for modem reset and discard every byte received in the next 1000ms
 		for (i=0; i<10; i++) {
@@ -265,7 +321,7 @@ int main(int argc, char **argv) {
 		if (debug_level>0) con("Disable echo\n");
 
 		// disable echo
-		send_step("ATE0\r", STEP_INIT);
+		cmd_send_step("ATE0\r", STEP_INIT);
 
 		// initialize first config
 		Node *n=config->first;
@@ -295,8 +351,8 @@ int main(int argc, char **argv) {
 							Config *c=(Config *)n->e;
 							if (equals("at", c->key)) {
 								if (debug_level>0) con("Startup config %s\n", c->value);
-								send(c->value);
-								send("\r");
+								cmd_send(c->value);
+								cmd_send("\r");
 								n=n->sig;
 								break;
 							}
@@ -306,7 +362,7 @@ int main(int argc, char **argv) {
 						usleep(100000); // para que no se agobie ;-)
 						if (debug_level>0) con("Sending first pid\n");
 						retry_first_pid();
-						send_step("0100\r", STEP_PID_FIRST);
+						cmd_send_step("0100\r", STEP_PID_FIRST);
 					}
 				} else {
 					// errors here
@@ -318,7 +374,7 @@ int main(int argc, char **argv) {
 				if (equals(line, "BUS INIT: OK")) {
 					if (debug_level>0) con("first pid OK\n");
 					next_pid_req="0104\r";
-					send_step(next_pid_req, STEP_PID_REQ);
+					cmd_send_step(next_pid_req, STEP_PID_REQ);
 				} else if (equals(line, "BUS INIT: ERROR")) {
 					// retry
 					if (debug_level>0) con("%s\n", line);
@@ -339,34 +395,62 @@ int main(int argc, char **argv) {
 						next_pid_req="";
 						// select by service PID
 						switch (bin[1]) {
-						case 0x04:
+
+						case 0x04: // Engine Load
 							next_pid_req="010C\r";
 							engine_load=(float)bin[2]/2.55;
 							break;
-						case 0x0C:
+
+						case 0x0C: // RPM
 							next_pid_req="010D\r";
 							rpm=(bin[2]*256+bin[3])/4;
 							break;
-						case 0x0D:
+
+						case 0x0D: // Speed
 							next_pid_req="0104\r";
 							speed=bin[2];
+							
+							// add num reads
 							reads++;
-							speed_t+=speed;
-							rpm_t  +=rpm;
-							int mspeed=speed_t/reads, mrpm=rpm_t/reads;
+
+							// total and average speed, rpm and engine load
+							speed_t      +=speed;
+							rpm_t        +=rpm;
+							engine_load_t+=engine_load;
+							int
+								mspeed      =speed_t      /reads,
+								mrpm        =rpm_t        /reads,
+								mengine_load=engine_load_t/reads
+							;
+
+							// show data
 							con(
-								"DATA(%d) speed=%d\trpm=%d\tmspeed=%d\tmrpm=%d\tload=%d%%\n",
-								reads, speed, rpm, mspeed, mrpm, engine_load
+								"DATA(%d) speed=%d\trpm=%d\tmspeed=%d\tmrpm=%d\tload=%d%%\tmload=%d%%\n",
+								reads, speed, rpm, mspeed, mrpm, engine_load, mengine_load
 							);
+
+							// send data over internet
+							if (dst_addr) {
+								isend_begin();
+								send_string("CAR");
+								//send_op(0x01);
+								send_op1(0x04, mengine_load);
+								send_op2(0x0C, mrpm);
+								send_op1(0x0D, mspeed);
+								isend_commit();
+							}
+
+							// gracefully sleep
 							usleep(150000);
+
 							break;
 						default:
 							con("Unsupported service PID %x\n", bin[1]);
 						}
-						if (next_pid_req[0]) send(next_pid_req);
+						if (next_pid_req[0]) cmd_send(next_pid_req);
 					} else {
 						// maybe NO DATA, retry
-						if (next_pid_req[0]) send(next_pid_req);
+						if (next_pid_req[0]) cmd_send(next_pid_req);
 					}
 				}
 				break;
