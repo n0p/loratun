@@ -1,7 +1,10 @@
 local/
 modem/test
-udp6test
+lorawan/test
+elm327/elm327
 schc/test
+loratun
+udp6test
 
 # Prerequisites
 *.d
