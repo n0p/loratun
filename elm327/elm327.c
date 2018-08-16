@@ -519,12 +519,10 @@ int main(int argc, char **argv) {
 								send_op1(0x04, mengine_load);
 								send_op2(0x0C, mrpm);
 								send_op1(0x0D, mspeed);
-								if (gps_enabled) {
-									if (got_gps_fix) {
-										send_op4(0xF0, (uint32_t)(gps_data.fix.latitude*1000000));
-										send_op4(0xF1, (uint32_t)(gps_data.fix.longitude*1000000));
-										send_op1(0xFD, (uint8_t)gps_data.fix.speed);
-									}
+								if (gps_enabled && got_gps_fix) {
+									send_op4(0xF0, (uint32_t)(gps_data.fix.latitude*1000000));
+									send_op4(0xF1, (uint32_t)(gps_data.fix.longitude*1000000));
+									send_op1(0xFD, (uint8_t)gps_data.fix.speed);
 								}
 								isend_commit();
 							}
