@@ -155,7 +155,7 @@ int main(int argc, char **argv) {
 
 	// check command line options
 	int option;
-	while ((option = getopt(argc, argv, "ha:d:s:p:")) > 0) {
+	while ((option = getopt(argc, argv, "ha:s:p:d:")) > 0) {
 		switch (option) {
 		case 'h':
 			usage(stdout);
@@ -163,14 +163,14 @@ int main(int argc, char **argv) {
 		case 'a':
 			config_add("at", optarg);
 			break;
-		case 'd':
-			debug_level=1;
-			break;
 		case 's':
 			strcpy(dst_addr, optarg);
 			break;
 		case 'p':
 			dst_port=atoi(optarg);
+			break;
+		case 'd':
+			debug_level=atoi(optarg);
 			break;
 		default:
 			break;

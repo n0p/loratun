@@ -1,23 +1,26 @@
 CC = gcc
 CFLAGS = -g -O2 -Wall -D_GNU_SOURCE
 LDFLAGS = -lpthread -pthread
-MODEM = modemfoo
+LORATUN = lib/list.c lib/modem_config.c schc/context.c schc/schc.c schc/schc_fields.c loratun.c -o loratun
 
-all: loratun udp6test
+all: loratun_modemfoo udp6test
 
 udp6test:
 	$(CC) $(CFLAGS) $(LDFLAGS) udp6test.c -o udp6test
 
-loratun:
-	$(CC) $(CFLAGS) $(LDFLAGS) $(MODEM)/modem.c lib/list.c lib/modem_config.c schc/context.c schc/schc.c schc/schc_fields.c loratun.c -o loratun
+loratun_modemfoo:
+	$(CC) $(CFLAGS) $(LDFLAGS) modemfoo/modem.c $(LORATUN)
 
-testfoo: all
-	bash -c "sleep 0.5 && ip addr add fd73:ab44:93dd:6b18::/64 dev loratun && ip link set loratun up && ./udp6test" &
-	./loratun -u -d -i loratun -m 'key=sample value'
+loratun_lorawan:
+	$(CC) $(CFLAGS) $(LDFLAGS) lib/serial.c lorawan/modem.c $(LORATUN)
 
-testlora: all
+test_modemfoo: loratun_modemfoo udp6test
 	bash -c "sleep 0.5 && ip addr add fd73:ab44:93dd:6b18::/64 dev loratun && ip link set loratun up && ./udp6test" &
-	./loratun -u -d -i loratun \
+	./loratun -u -d 2 -i loratun -m 'key=sample value'
+
+test_lorawan: loratun_lorawan udp6test
+	bash -c "sleep 0.5 && ip addr add fd73:ab44:93dd:6b18::/64 dev loratun && ip link set loratun up && ./udp6test" &
+	./loratun -u -d 2 -i loratun \
 	-m SerialPort=/dev/ttyACM0 \
 	-m AT+APPKEY=ce:e3:fa:63:e5:ee:e8:ff:28:dd:08:69:ca:48:87:1c \
 	-m AT+NWSKEY=cb:c9:a5:4e:de:35:4e:c9:33:61:cf:01:c3:71:e7:e2 \

@@ -23,11 +23,10 @@
 #include "schc/schc.h"
 #include "schc/schc_fields.h"
 
-//   #include <stddef.h>
-
 #define BUFFER_SIZE 2048 // buffer for reading from tun/tap interface, must be >= 1500
 
 int tap_fd;
+int debug_level=0;
 
 pthread_mutex_t recv_mutex;
 pthread_mutex_t tun_mutex;
@@ -138,20 +137,23 @@ int loratun_modem_recv(uint8_t *data, int len) {
 
 	pthread_mutex_lock(&recv_mutex);
 
-	con("[TUN] send %d bytes from modem to the interface\n", len);
+	if (debug_level>0) con("[TUN] send %d bytes from modem to the interface\n", len);
 
 	int ret=schc_decompress((uint8_t *)data, len, (struct field_values *)&p);
 	//con("[TUN] schc_decompress ret=%d\n", ret);
 	//debug((uint8_t *)&p, p.udp_length + offsetof(typeof(p), payload) - 0x08);
 	int buffer_len=0;
 	if (!ret && !fields2buffer(&p, (uint8_t *)&buffer, (int *)&buffer_len)) {
-		con("[TUN] UNSC "); debug(buffer, buffer_len);
+		if (debug_level>1) {
+			con("[TUN] UNSC ");
+			debug(buffer, buffer_len);
+		}
 
 		stats_tap_w++;
 
 		// now buffer[] contains a full packet or frame, write it into the tun/tap interface
 		int nwrite = cwrite(tap_fd, buffer, buffer_len);
-		con("[TUN] %lu: Written %d bytes to the tap interface\n", stats_tap_w, nwrite);
+		if (debug_level>1) con("[TUN] %lu: written %d bytes to the tap interface\n", stats_tap_w, nwrite);
 
 	}
 
@@ -175,10 +177,10 @@ int main(int argc, char *argv[]) {
 		fprintf(to, "%s -i <ifacename> [-u|-a] [-d]\n", argv[0]);
 		fprintf(to, "%s -h\n", argv[0]);
 		fprintf(to, "\n");
-		fprintf(to, "-i <ifacename>: Name of interface to use (mandatory)\n");
-		fprintf(to, "-u|-a: use TUN (-u, default) or TAP (-a)\n");
-		fprintf(to, "-d: outputs debug information while running\n");
-		fprintf(to, "-h: prints this help text\n");
+		fprintf(to, "-i <ifacename>   name of interface to use (mandatory)\n");
+		fprintf(to, "-u|-a            use TUN (-u, default) or TAP (-a)\n");
+		fprintf(to, "-d <level>       outputs debug information while running\n");
+		fprintf(to, "-h               prints this help text\n");
 		exit(to==stdout?0:1);
 	}
 
@@ -187,46 +189,45 @@ int main(int argc, char *argv[]) {
 
 	// check command line options
 	int option;
-	while ((option = getopt(argc, argv, "i:m:uahd")) > 0) {
+	while ((option = getopt(argc, argv, "i:m:uahd:")) > 0) {
 		switch (option) {
-			case 'd':
-				//debug_level=1;
-				break;
-			case 'h':
-				usage(stdout);
-				break;
-			case 'i':
-				strncpy(if_name, optarg, IFNAMSIZ-1);
-				break;
-			case 'u':
-				if_flags=IFF_TUN;
-				break;
-			case 'a':
-				if_flags=IFF_TAP;
-				break;
-			case 'm':
-				{
-					int p=strpos(optarg, "=");
-					if (p>0) {
-						optarg[p]=0;
-						modem_config_add(optarg, optarg+p+1);
-					}
+		case 'h':
+			usage(stdout);
+			break;
+		case 'i':
+			strncpy(if_name, optarg, IFNAMSIZ-1);
+			break;
+		case 'u':
+			if_flags=IFF_TUN;
+			break;
+		case 'a':
+			if_flags=IFF_TAP;
+			break;
+		case 'm':
+			{
+				int p=strpos(optarg, "=");
+				if (p>0) {
+					optarg[p]=0;
+					modem_config_add(optarg, optarg+p+1);
 				}
-				break;
-			default:
-				err("Unknown option %c\n", option);
-				usage(stderr);
+			}
+			break;
+		case 'd':
+			debug_level=atoi(optarg);
+			break;
+		default:
+			err("Unknown option %c\n", option);
+			usage(stderr);
 		}
 	}
 
-	argv += optind;
-	argc -= optind;
-
-	if (argc > 0) {
+	// check excess options
+	if (argc - optind > 0) {
 		err("Too many options!\n");
 		usage(stderr);
 	}
 
+	// check interface name
 	if (*if_name == '\0') {
 		err("Must specify interface name!\n");
 		usage(stderr);
@@ -238,7 +239,7 @@ int main(int argc, char *argv[]) {
 		exit(1);
 	}
 
-	con("[TUN] Interface '%s' enabled\n", if_name);
+	if (debug_level>0) con("[TUN] Interface '%s' enabled\n", if_name);
 
 	// modem thread declaration
 	pthread_t modem_thread_t;
@@ -305,9 +306,12 @@ int main(int argc, char *argv[]) {
 			nread = cread(tap_fd, buffer, BUFFER_SIZE);
 
 			stats_tap_r++;
-			con("[TUN] %lu: Read %d bytes from the tap interface\n", stats_tap_r, nread);
+			if (debug_level>0) con("[TUN] %lu: Read %d bytes from the tap interface\n", stats_tap_r, nread);
 
-			con("[TUN] READ "); debug(buffer, nread);
+			if (debug_level>1) {
+				con("[TUN] READ ");
+				debug(buffer, nread);
+			}
 
 			// *** debug: save binary packet to file
 			/*
@@ -331,7 +335,10 @@ int main(int argc, char *argv[]) {
 					int ret=schc_compress(&p, (uint8_t *)&schc_packet, (size_t *)&schc_packet_len);
 					//printf("schc_compress ret=%d newlen=%d\n", ret, (int) schc_packet_len);
 					if (!ret) {
-						con("[TUN] SCHC "); debug(schc_packet, schc_packet_len);
+						if (debug_level>1) {
+							con("[TUN] SCHC ");
+							debug(schc_packet, schc_packet_len);
+						}
 						// send compressed packet to modem
 						loratun_modem_send(schc_packet, schc_packet_len);
 					}
