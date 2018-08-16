@@ -1,9 +1,12 @@
-#include <signal.h>
-#include <unistd.h>
 #include <stdlib.h>
+#include <unistd.h>
+#include <signal.h>
 #include <string.h>
 #include <stdarg.h>
 #include <stdbool.h>
+
+#include <gps.h>
+#include <math.h>
 
 #include "../lib/config.h"
 #include "../lib/serial.h"
@@ -100,6 +103,7 @@ int line_read(char *line) {
 // main application
 int main(int argc, char **argv) {
 
+	bool working=true;
 	char *serport=NULL;
 	char next_pid_req_b[MAX_LINE];
 	char *next_pid_req=(char *)&next_pid_req_b;
@@ -109,11 +113,13 @@ int main(int argc, char **argv) {
 	unsigned char bin[MAX_LINE / 3];
 	char buffer[MAX_LINE];
 	char *line=(char *)&buffer;
-	bool working=true;
 	uint8_t  engine_load=0, speed=0;
 	uint16_t rpm=0;
 	uint32_t speed_t=0, rpm_t=0, engine_load_t=0;
 	uint32_t reads=0;
+	int rc=0;
+	bool gps_enabled=false;
+	struct gps_data_t gps_data;
 
 	// main destroy
 	int destroy() {
@@ -121,6 +127,10 @@ int main(int argc, char **argv) {
 		if (fd) {
 			serial_close(fd);
 			fd=0;
+		}
+		if (gps_enabled) {
+			gps_stream(&gps_data, WATCH_DISABLE, NULL);
+			gps_close(&gps_data);
 		}
 		if (dst_addr) isend_destroy();
 		return 0;
@@ -148,6 +158,7 @@ int main(int argc, char **argv) {
 		fprintf(to, "-a <atcmd>      send an AT command at startup\n");
 		fprintf(to, "-s <ipv6addr>   send data over IPv6/UDP\n");
 		fprintf(to, "-p <ipv6port>   specify port (actual: %d)\n", dst_port);
+		fprintf(to, "-g              enable GPS (via gpsd)\n");
 		fprintf(to, "-d <level>      outputs debug information while running\n");
 		fprintf(to, "-h              prints this help text\n");
 		exit(to==stdout?0:1);
@@ -155,7 +166,7 @@ int main(int argc, char **argv) {
 
 	// check command line options
 	int option;
-	while ((option = getopt(argc, argv, "ha:s:p:d:")) > 0) {
+	while ((option = getopt(argc, argv, "ha:s:p:gd:")) > 0) {
 		switch (option) {
 		case 'h':
 			usage(stdout);
@@ -168,6 +179,9 @@ int main(int argc, char **argv) {
 			break;
 		case 'p':
 			dst_port=atoi(optarg);
+			break;
+		case 'g':
+			gps_enabled=true;
 			break;
 		case 'd':
 			debug_level=atoi(optarg);
@@ -242,7 +256,7 @@ int main(int argc, char **argv) {
 		isend_add((uint8_t *)&op, 1);
 	}
 
-	// send op + 1 byte over internet
+	// send op + 8 bit integer over internet
 	void send_op1(uint8_t op, uint8_t data) {
 		struct Packet {
 			uint8_t op;
@@ -254,7 +268,7 @@ int main(int argc, char **argv) {
 		isend_add(b, 2);
 	}
 
-	// send op + 2 bytes over internet
+	// send op + 16 bit integer over internet
 	void send_op2(uint8_t op, uint16_t data) {
 		struct Packet {
 			uint8_t op;
@@ -266,12 +280,34 @@ int main(int argc, char **argv) {
 		isend_add(b, 3);
 	}
 
+	// send op + 32 bit integer over internet
+	void send_op4(uint8_t op, uint32_t data) {
+		struct Packet {
+			uint8_t op;
+			uint32_t data;
+		} __attribute__((packed)) p;
+		uint8_t *b=(uint8_t *)&p;
+		p.op=op;
+		p.data=htonl(data);
+		isend_add(b, 5);
+	}
+
 	// if destination declared, initialize internet socket
-	if (dst_addr)
+	if (dst_addr) {
 		if (isend_init(dst_addr, dst_port) != 0) {
 			perror("[client] creating socket");
 			exit(11);
 		}
+	}
+
+	// connect to gpsd
+	if (gps_enabled) {
+		if ((rc = gps_open("localhost", "2947", &gps_data)) == -1) {
+			printf("code: %d, reason: %s\n", rc, gps_errstr(rc));
+			return 12;
+		}
+		gps_stream(&gps_data, WATCH_ENABLE | WATCH_JSON, NULL);
+	}
 
 	// start connection
 	con("Connecting to %s\n", serport);
@@ -434,11 +470,46 @@ int main(int argc, char **argv) {
 								mengine_load=engine_load_t/reads
 							;
 
+							// wait a little to receive data
+							bool got_gps_fix=false;
+							if (gps_enabled) {
+								if (gps_waiting(&gps_data, 200000)) {
+									if ((rc = gps_read(&gps_data)) == -1) {
+										err("error occured reading gps data. code: %d, reason: %s\n", rc, gps_errstr(rc));
+									} else {
+										// check GPS fix
+										if (
+											(gps_data.status == STATUS_FIX)
+											&& (gps_data.fix.mode == MODE_2D || gps_data.fix.mode == MODE_3D)
+											&& !isnan(gps_data.fix.latitude)
+											&& !isnan(gps_data.fix.longitude)
+										) {
+											//gettimeofday(&tv, NULL); EDIT: tv.tv_sec isn't actually the timestamp!
+											got_gps_fix=true;
+											//con("latitude: %f, longitude: %f, speed: %f, timestamp: %lf\n", gps_data.fix.latitude, gps_data.fix.longitude, gps_data.fix.speed, gps_data.fix.time);
+										} else {
+											if (debug_level>2) con("no GPS data available\n");
+										}
+									}
+								}
+							}
+
 							// show data
 							con(
-								"DATA(%d) speed=%d avg=%d rpm=%d avg=%d load=%d%% avg=%d%%\n",
+								"DATA(%d) speed=%d avg=%d rpm=%d avg=%d load=%d%% avg=%d%%",
 								reads, speed, mspeed, rpm, mrpm, engine_load, mengine_load
 							);
+							if (gps_enabled) {
+								if (got_gps_fix) {
+									con(" GPS[fix=%s lat=%f lon=%f speed=%f time=%lf]",
+										(gps_data.fix.mode==MODE_3D?"3D":(gps_data.fix.mode==MODE_2D?"2D":"NO")),
+										gps_data.fix.latitude, gps_data.fix.longitude, gps_data.fix.speed, gps_data.fix.time
+									);
+								} else {
+									con(" GPS[fix=NO]");
+								}
+							}
+							con("\n");
 
 							// send data over internet
 							if (dst_addr) {
@@ -448,6 +519,13 @@ int main(int argc, char **argv) {
 								send_op1(0x04, mengine_load);
 								send_op2(0x0C, mrpm);
 								send_op1(0x0D, mspeed);
+								if (gps_enabled) {
+									if (got_gps_fix) {
+										send_op4(0xF0, (uint32_t)(gps_data.fix.latitude*1000000));
+										send_op4(0xF1, (uint32_t)(gps_data.fix.longitude*1000000));
+										send_op1(0xFD, (uint8_t)gps_data.fix.speed);
+									}
+								}
 								isend_commit();
 							}
 

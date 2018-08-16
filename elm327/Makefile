@@ -1,9 +1,10 @@
 CC = gcc
 CFLAGS = -g -O0 -ggdb -Wall -D_GNU_SOURCE -Wno-pointer-sign
-LDFLAGS = -lpthread -pthread
+LDFLAGS = -lm -lgps
+# -lpthread -pthread
 
 all:
-	$(CC) $(CFLAGS) $(LDFLAGS) ../lib/config.c ../lib/list.c ../lib/serial.c isend.c elm327.c -o elm327
+	$(CC) $(CFLAGS) ../lib/config.c ../lib/list.c ../lib/serial.c isend.c elm327.c $(LDFLAGS) -o elm327
 
 test: all
 	./elm327
