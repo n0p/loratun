@@ -57,7 +57,7 @@ int strpos(char *haystack, char *needle) {
 
 // send command
 int cmd_send(char *command) {
-	if (debug_level>2) con("> %s\n", command);
+	if (debug_level > 2) con("> %s\n", command);
 	return serial_write(fd, command, strlen(command));
 }
 
@@ -123,7 +123,7 @@ int main(int argc, char **argv) {
 
 	// main destroy
 	int destroy() {
-		if (debug_level>0) con("Cleaning up\n");
+		if (debug_level > 0) con("Cleaning up\n");
 		if (fd) {
 			serial_close(fd);
 			fd=0;
@@ -237,10 +237,11 @@ int main(int argc, char **argv) {
 	// retry
 	int retry_first_pid() {
 		static int pid_req_retries=0;
-		if (pid_req_retries<3) {
+		if (pid_req_retries < 3) {
 			pid_req_retries++;
 			cmd_send_step("0100\r", STEP_PID_FIRST);
 		} else {
+			if (debug_level > 0) err("Too many retries, closing connection.");
 			working=false;
 		}
 		return working;
@@ -310,11 +311,11 @@ int main(int argc, char **argv) {
 	}
 
 	// start connection
-	con("Connecting to %s\n", serport);
+	if (debug_level > 0) con("Connecting to %s\n", serport);
  	fd=serial_open(serport);
 	if (fd) {
 		
-		if (debug_level>0) con("Serial Initialization\n");
+		if (debug_level > 0) con("Serial Initialization\n");
 
 		// set speed, no parity, no blocking
 		serial_set_interface_attribs(fd, B9600, 0);
@@ -328,7 +329,7 @@ int main(int argc, char **argv) {
 			int i;
 			for (i=0; i<10; i++) {
 				serial_aread(fd, line, MAX_LINE);
-				if (debug_level>2) con("%s", line);
+				if (debug_level > 2) con("%s", line);
 				usleep(100000);
 			}
 		}
@@ -339,9 +340,9 @@ int main(int argc, char **argv) {
 			int i;
 			for (i=0; i<10; i++) {
 				serial_aread(fd, line, MAX_LINE);
-				if (debug_level>2) con("[%s]", line);
+				if (debug_level > 2) con("[%s]", line);
 				if (strpos(line, "OK") >= 0) {
-					if (debug_level>0) con("ATD is OK\n");
+					if (debug_level > 0) con("ATD is OK\n");
 					break;
 				}
 				usleep(100000);
@@ -354,7 +355,7 @@ int main(int argc, char **argv) {
 		//while(true) { line_read(line); con("LINE[%s]\n", line); } // debug
 
 		// disable echo
-		if (debug_level>0) con("Disable echo\n");
+		if (debug_level > 0) con("Disable echo\n");
 		cmd_send_step("ATE0\r", STEP_INIT);
 
 		// point to first config
@@ -365,9 +366,9 @@ int main(int argc, char **argv) {
 
 			// read next line
 			int nread=line_read(line);
-			if (nread <= 0 || equals(line, "")) continue; // ignore empty lines
-			if (line[0] == '>') line++; // clear console prompt
-			if (debug_level>1) con("< %s\n", line);
+			if (nread>0 && line[0] == '>') line++; // clear console prompt
+			if (equals(line, "")) continue; // ignore empty lines
+			if (debug_level > 1) con("< %s\n", line);
 
 			// state machine
 			switch (step) {
@@ -375,22 +376,26 @@ int main(int argc, char **argv) {
 			// initialize
 			case STEP_INIT:
 				if (equals(line, "E0") || equals(line, "OK") || equals(line, "BUS INIT: OK")) {
-					if (config_node) {
-						do {
-							Config *c=(Config *)config_node->e;
-							config_node=config_node->sig;
-							if (equals("at", c->key)) {
-								if (debug_level>0) con("Startup config %s\n", c->value);
-								cmd_send(c->value);
-								cmd_send("\r");
-								break;
-							}
-						} while (config_node);
-					} else {
+
+					// while pending configurations
+					while (config_node) {
+						Config *c=(Config *)config_node->e;
+						config_node=config_node->sig;
+						if (equals("at", c->key)) {
+							if (debug_level > 0) con("Startup config %s\n", c->value);
+							cmd_send(c->value);
+							cmd_send("\r");
+							break;
+						}
+					}
+
+					// no more configurations
+					if (!config_node) {
 						usleep(100000); // 100ms wait to prevent ELM327 CPU blocking
-						if (debug_level>0) con("Sending first pid\n");
+						if (debug_level > 0) con("Sending first pid\n");
 						retry_first_pid();
 					}
+
 				} else {
 					// errors here
 				}
@@ -401,20 +406,20 @@ int main(int argc, char **argv) {
 				// if bus initialization is successfull, try first PID
 				if (equals(line, "BUS INIT: OK")) {
 
-					if (debug_level>0) con("first pid OK\n");
+					if (debug_level > 0) con("first pid OK\n");
 					next_pid_req="0104\r";
 					cmd_send_step(next_pid_req, STEP_PID_REQ);
 
 				// if initialization is not successfull, try again a few times
 				} else if (equals(line, "BUS INIT: ERROR")) {
 
-					if (debug_level>0) con("%s\n", line);
+					if (debug_level > 0) con("%s\n", line);
 					retry_first_pid();
 
 				// if bus initialization is searching, go next step
 				} else if (equals(line, "SEARCHING...")) {
 
-					if (debug_level>0) con("searching protocol\n");
+					if (debug_level > 0) con("searching protocol\n");
 					step=STEP_PID_REQ;
 
 				}
@@ -442,6 +447,10 @@ int main(int argc, char **argv) {
 
 						// select by service PID
 						switch (bin[1]) {
+
+						case 0x00: // available services
+							// continue with next_pid_req
+							break;
 
 						case 0x04: // Engine Load
 							next_pid_req="010C\r";
@@ -488,7 +497,7 @@ int main(int argc, char **argv) {
 											got_gps_fix=true;
 											//con("latitude: %f, longitude: %f, speed: %f, timestamp: %lf\n", gps_data.fix.latitude, gps_data.fix.longitude, gps_data.fix.speed, gps_data.fix.time);
 										} else {
-											if (debug_level>2) con("no GPS data available\n");
+											if (debug_level > 2) con("no GPS data available\n");
 										}
 									}
 								}
