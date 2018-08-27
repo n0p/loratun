@@ -241,7 +241,7 @@ int main(int argc, char **argv) {
 			pid_req_retries++;
 			cmd_send_step("0100\r", STEP_PID_FIRST);
 		} else {
-			if (debug_level > 0) err("Too many retries, closing connection.");
+			if (debug_level > 0) err("Too many retries, closing connection.\n");
 			working=false;
 		}
 		return working;
@@ -375,7 +375,7 @@ int main(int argc, char **argv) {
 
 			// initialize
 			case STEP_INIT:
-				if (equals(line, "E0") || equals(line, "OK") || equals(line, "BUS INIT: OK")) {
+				if (equals(line, "AT+BRSF=24") || equals(line, "E0") || equals(line, "OK") || equals(line, "BUS INIT: OK")) {
 
 					// while pending configurations
 					while (config_node) {
@@ -443,7 +443,7 @@ int main(int argc, char **argv) {
 					if (nbin>1 && bin[0]==0x41) {
 
 						// default first PID request
-						next_pid_req="0104\r";
+						next_pid_req="0104\r"; // default: 0104
 
 						// select by service PID
 						switch (bin[1]) {
