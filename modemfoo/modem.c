@@ -9,6 +9,7 @@ int running=true;
 uint8_t *copybuf=NULL;
 int copybuf_len;
 
+// aux: free copy buffer
 void copybuf_free() {
 	if (copybuf) {
 		free(copybuf);
