@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -g -O2 -Wall -D_GNU_SOURCE
+CFLAGS = -std=c11 -D_GNU_SOURCE -g -O2 -Wall
 LDFLAGS = -lpthread -pthread
 LORATUN = lib/list.c lib/modem_config.c schc/context.c schc/schc.c schc/schc_fields.c loratun.c -o loratun
 
