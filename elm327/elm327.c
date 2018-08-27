@@ -14,6 +14,8 @@
 
 #include "isend.h"
 
+#define GPSD_HOST "localhost"
+#define GPSD_PORT "2947"
 #define MAX_LINE 1024
 
 int debug_level=0;
@@ -24,9 +26,7 @@ enum {
 	STEP_RESET,
 	STEP_INIT,
 	STEP_PID_FIRST,
-	STEP_PID_REQ,
-	STEP_PID_RPM,
-	STEP_PID_SPEED
+	STEP_PID_REQ
 };
 
 int step=STEP_NONE;
@@ -119,6 +119,7 @@ int main(int argc, char **argv) {
 	uint32_t reads=0;
 	int rc=0;
 	bool gps_enabled=false;
+	bool gps_test=false;
 	struct gps_data_t gps_data;
 
 	// main destroy
@@ -128,7 +129,7 @@ int main(int argc, char **argv) {
 			serial_close(fd);
 			fd=0;
 		}
-		if (gps_enabled) {
+		if (gps_enabled || gps_test) {
 			gps_stream(&gps_data, WATCH_DISABLE, NULL);
 			gps_close(&gps_data);
 		}
@@ -159,6 +160,7 @@ int main(int argc, char **argv) {
 		fprintf(to, "-s <ipv6addr>   send data over IPv6/UDP\n");
 		fprintf(to, "-p <ipv6port>   specify port (actual: %d)\n", dst_port);
 		fprintf(to, "-g              enable GPS (via gpsd)\n");
+		fprintf(to, "-t              test GPS (via gpsd) - serialport not required\n");
 		fprintf(to, "-d <level>      outputs debug information while running\n");
 		fprintf(to, "-h              prints this help text\n");
 		exit(to==stdout?0:1);
@@ -166,7 +168,7 @@ int main(int argc, char **argv) {
 
 	// check command line options
 	int option;
-	while ((option = getopt(argc, argv, "ha:s:p:gd:")) > 0) {
+	while ((option = getopt(argc, argv, "ha:s:p:gd:t")) > 0) {
 		switch (option) {
 		case 'h':
 			usage(stdout);
@@ -186,13 +188,16 @@ int main(int argc, char **argv) {
 		case 'd':
 			debug_level=atoi(optarg);
 			break;
+		case 't':
+			gps_test=true;
+			break;
 		default:
 			break;
 		}
 	}
 
 	// require serial port
-	if (argc - optind < 1) {
+	if (!gps_test && argc - optind < 1) {
 		err("Required serial port not specified.\n");
 		usage(stderr);
 	}
@@ -302,12 +307,46 @@ int main(int argc, char **argv) {
 	}
 
 	// connect to gpsd
-	if (gps_enabled) {
-		if ((rc = gps_open("localhost", "2947", &gps_data)) == -1) {
+	if (gps_enabled || gps_test) {
+		if ((rc = gps_open(GPSD_HOST, GPSD_PORT, &gps_data)) == -1) {
 			printf("code: %d, reason: %s\n", rc, gps_errstr(rc));
 			return 12;
 		}
 		gps_stream(&gps_data, WATCH_ENABLE | WATCH_JSON, NULL);
+	}
+
+	// if requested a gps test
+	if (gps_test) {
+
+		while (1) {
+
+			// wait for 2 seconds to receive data
+			if (gps_waiting(&gps_data, 2000000)) {
+
+				// read data
+				if ((rc = gps_read(&gps_data)) == -1) {
+					err("error occured reading gps data. code: %d, reason: %s\n", rc, gps_errstr(rc));
+				} else {
+
+					// display data from the GPS receiver.
+					if ((gps_data.status == STATUS_FIX) && 
+						(gps_data.fix.mode == MODE_2D || gps_data.fix.mode == MODE_3D) &&
+						!isnan(gps_data.fix.latitude) && 
+						!isnan(gps_data.fix.longitude)) {
+							//gettimeofday(&tv, NULL); EDIT: tv.tv_sec isn't actually the timestamp!
+							con("latitude: %f, longitude: %f, speed: %f, timestamp: %lf\n", gps_data.fix.latitude, gps_data.fix.longitude, gps_data.fix.speed, gps_data.fix.time); //EDIT: Replaced tv.tv_sec with gps_data.fix.time
+					} else {
+						con("no GPS data available\n");
+					}
+
+				}
+
+			}
+
+			sleep(1);
+
+		}
+
 	}
 
 	// start connection
