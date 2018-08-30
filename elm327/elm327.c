@@ -153,15 +153,16 @@ int main(int argc, char **argv) {
 	// usage: prints usage and exits
 	void usage(struct _IO_FILE *to) {
 		fprintf(to, "Usage:\n");
-		fprintf(to, "%s <serialport> [-a <atcmd>] [-d <level>]\n", argv[0]);
+		fprintf(to, "%s <serialport> [-d <level>] [-a <atcmd>] [-s <ipv6addr>] [-p <ipv6port>] [-g]\n", argv[0]);
+		fprintf(to, "%s -t\n", argv[0]);
 		fprintf(to, "%s -h\n", argv[0]);
 		fprintf(to, "\n");
+		fprintf(to, "-d <level>      outputs debug information while running\n");
 		fprintf(to, "-a <atcmd>      send an AT command at startup\n");
 		fprintf(to, "-s <ipv6addr>   send data over IPv6/UDP\n");
 		fprintf(to, "-p <ipv6port>   specify port (actual: %d)\n", dst_port);
 		fprintf(to, "-g              enable GPS (via gpsd)\n");
-		fprintf(to, "-t              test GPS (via gpsd) - serialport not required\n");
-		fprintf(to, "-d <level>      outputs debug information while running\n");
+		fprintf(to, "-t              test GPS (via gpsd)\n");
 		fprintf(to, "-h              prints this help text\n");
 		exit(to==stdout?0:1);
 	}

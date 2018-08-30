@@ -1,89 +1,49 @@
-#include "modem.h"
+#include "../lib/modem.h"
 
 #include <signal.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <pthread.h>
+#include <stdarg.h>
 
-List *param;
+pthread_mutex_t tun_mutex;
 
-void configAdd(char *k, char *v) {
-	Config *c=malloc(sizeof(Config));
-	strcpy(c->key, k);
-	strcpy(c->value, v);
-	listNodeAdd(param, (Config *)c);
+// output to console
+void con(char *msg, ...) {
+	va_list argp;
+	va_start(argp, msg);
+	vfprintf(stdout, msg, argp);
+	va_end(argp);
+	fflush(stdout);
 }
 
-void configDel(Config *c) {
-	free(c);
+// data reception
+int loratun_modem_recv(uint8_t *data, int len) {
+	con("*** RECEIVED len(%d)=%s\n", len, data);
+	return 0;
 }
 
-void configList() {
-	Node *n=param->first;
-	while (n) {
-		Config *c=(Config *)n->e;
-		printf("%s=%s\n", c->key, c->value);
-		//if (strcmp(c->key, "key2")==0) printf("*** parámetro me interesa!\n");
-		n=n->sig;
-	}
-}
-
-int loratun_modem_recv(char *data, int len) {
-	printf("*** He recibido len(%d)=%s\n", len, data);
-}
-
-int *modem_thread(void *p)
-{
-
-	/* increment x to 100 */
-	//int *x_ptr = (int *)p;
-	//while(++(*x_ptr) < 100);
-
-	loratun_modem(param);
-
-	printf("modem finished\n");
-
-	/* the function must return something - NULL will do */
+int *modem_thread(void *p) {
+	loratun_modem(modem_config);
 	return NULL;
-
 }
 
 int main() {
 
-	param=listNew();
-
 	void sig_handler(int signo) {
-
-		printf("\n");
-
+		con("\n");
 		loratun_modem_destroy();
-
-		{
-			Node *n=param->first;
-			while (n) {
-				configDel((Config *)n->e);
-				listNodeDel(param, n);
-				n=n->sig;
-			}
-		}
-		listFree(param);
-
-		exit(0);
-
+		modem_config_destroy();
+		//exit(0);
 	}
 
-	configAdd("SerialPort", "/dev/ttyACM0");
-	configAdd("AT+APPKEY", "ce:e3:fa:63:e5:ee:e8:ff:28:dd:08:69:ca:48:87:1c");
-	configAdd("AT+NWSKEY", "cb:c9:a5:4e:de:35:4e:c9:33:61:cf:01:c3:71:e7:e2");
-	configAdd("AT+DADDR", "06:c6:f5:c0");
-	configAdd("AT+APPSKEY", "81:3f:2e:ad:c7:ec:ce:26:ae:b2:33:87:a9:b9:cb:45");
-	configAdd("AT+ADR", "0");
-	configAdd("AT+DR", "2");
-	configAdd("AT+DCS", "0");
-	configAdd("AT+TXP", "3");
-	configAdd("AT+CLASS", "C");
-	configAdd("AT+NJM", "1");
-	configList();
+	// initialize list of modem configurations
+	modem_config_init();
+
+	// add needed configurations
+	modem_config_add("SerialPort", "/dev/ttyACM0");
+	modem_config_add("key", "value");
+	modem_config_print();
 
 	if (signal(SIGINT,  sig_handler) == SIG_ERR) perror("\ncan't catch SIGINT\n");
 	if (signal(SIGQUIT, sig_handler) == SIG_ERR) perror("\ncan't catch SIGQUIT\n");
@@ -91,30 +51,38 @@ int main() {
 	// thread
 	pthread_t modem_thread_t;
 
+	// initialize mutex
+	if (pthread_mutex_init(&tun_mutex, NULL) != 0) {
+		perror("send_mutex");
+		return 1;
+	}
+
 	// start thread
-	if (pthread_create(&modem_thread_t, NULL, modem_thread, 0)) {
+	if (pthread_create(&modem_thread_t, NULL, (void *)modem_thread, 0)) {
 		perror("Error creating thread");
 		return 1;
 	}
 
-	// padre
+	// send some test data
 	int i=0;
 	for (i=0;i<3;i++) {
+		con("SENDING #%d\n", i);
+		loratun_modem_send((uint8_t *)"ABC\0", 4);
 		sleep(1);
-		printf("****** Send %d\n", i);
-		loratun_modem_send("ABC\0", 4);
 	}
 
 	/// wait for the thread to finish
+	con("Press Ctrl+C to end modem test\n");
 	if (pthread_join(modem_thread_t, NULL)) {
 		perror("Error joining thread");
 		return 2;
 	}
 
-	// terminar
-	sig_handler(SIGINT);
+	// remove handlers
+	signal(SIGINT, SIG_DFL);
+	signal(SIGQUIT, SIG_DFL);
 
-	// fallback
+	// all ok
 	return 0;
 
 }

@@ -174,22 +174,22 @@ int main(int argc, char *argv[]) {
 	// usage: prints usage and exits
 	void usage(struct _IO_FILE *to) {
 		fprintf(to, "Usage:\n");
-		fprintf(to, "%s -i <ifacename> [-u|-a] [-d]\n", argv[0]);
+		fprintf(to, "%s -i <ifacename> [-d <level>] [-m <modemconfig>...]\n", argv[0]);
 		fprintf(to, "%s -h\n", argv[0]);
 		fprintf(to, "\n");
-		fprintf(to, "-i <ifacename>   name of interface to use (mandatory)\n");
-		fprintf(to, "-u|-a            use TUN (-u, default) or TAP (-a)\n");
-		fprintf(to, "-d <level>       outputs debug information while running\n");
-		fprintf(to, "-h               prints this help text\n");
+		fprintf(to, "-d <level>         outputs debug information while running\n");
+		fprintf(to, "-i <ifacename>     name of interface to use (mandatory)\n");
+		fprintf(to, "-m <modemconfig>   set a configuration to the modem (key=value)\n");
+		fprintf(to, "-h                 prints this help text\n");
 		exit(to==stdout?0:1);
 	}
 
-	// inicializar lista de configuraciones de modem
+	// initialize list of modem configurations
 	modem_config_init();
 
 	// check command line options
 	int option;
-	while ((option = getopt(argc, argv, "i:m:uahd:")) > 0) {
+	while ((option = getopt(argc, argv, "i:m:hd:")) > 0) {
 		switch (option) {
 		case 'h':
 			usage(stdout);
@@ -197,12 +197,14 @@ int main(int argc, char *argv[]) {
 		case 'i':
 			strncpy(if_name, optarg, IFNAMSIZ-1);
 			break;
+		/*
 		case 'u':
 			if_flags=IFF_TUN;
 			break;
 		case 'a':
 			if_flags=IFF_TAP;
 			break;
+		*/
 		case 'm':
 			{
 				int p=strpos(optarg, "=");
