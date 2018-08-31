@@ -14,11 +14,11 @@ footun:
 loratun:
 	$(CC) $(CFLAGS) $(LDFLAGS) lib/serial.c lorawan/modem.c $(MODEMTUN) loratun
 
-test_modemfoo: footun udp6test
+test_footun: footun udp6test
 	bash -c "sleep 0.5 && ip addr add fd73:ab44:93dd:6b18::/64 dev footun && ip link set footun up && ./udp6test" &
 	./footun -u -d 2 -i footun -m 'key=sample value'
 
-test_lorawan: loratun udp6test
+test_loratun: loratun udp6test
 	bash -c "sleep 0.5 && ip addr add fd73:ab44:93dd:6b18::/64 dev loratun && ip link set loratun up && ./udp6test" &
 	./loratun -u -d 2 -i loratun \
 	-m SerialPort=/dev/ttyACM0 \
