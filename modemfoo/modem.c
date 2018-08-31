@@ -16,14 +16,14 @@ void copybuf_free() {
 }
 
 // modem loop
-int loratun_modem(List *param) {
+int modemtun_modem(List *param) {
 	con("[MODEM] started (sample key=%s)\n", modem_config_get("key"));
 	running=true;
 	while (running) {
 		usleep(100000);
 		pthread_mutex_lock(&tun_mutex);
 		if (copybuf) {
-			loratun_modem_recv(copybuf, copybuf_len);
+			modemtun_modem_recv(copybuf, copybuf_len);
 			copybuf_free();
 		}
 		pthread_mutex_unlock(&tun_mutex);
@@ -33,7 +33,7 @@ int loratun_modem(List *param) {
 }
 
 // send data from interface to modem
-int loratun_modem_send(uint8_t *data, int len) {
+int modemtun_modem_send(uint8_t *data, int len) {
 	if (!running) while (!running) usleep(100000); // wait for modem initialization
 	pthread_mutex_lock(&tun_mutex);
 	con("[MODEM] received %d bytes from the interface, sending them back.\n", len);
@@ -46,7 +46,7 @@ int loratun_modem_send(uint8_t *data, int len) {
 }
 
 // modem cleanup
-int loratun_modem_destroy() {
+int modemtun_modem_destroy() {
 	con("[MODEM] destroy\n");
 	pthread_mutex_lock(&tun_mutex);
 	copybuf_free();

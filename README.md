@@ -1,5 +1,5 @@
-# loratun
-TUN2LoRaWAN interface
+# modemtun
+modem tunneled interface
 
 ## Building
 Easy peasy...

@@ -19,8 +19,17 @@ void con(char *msg, ...) {
 	fflush(stdout);
 }
 
+// output to error
+void err(char *msg, ...) {
+	va_list argp;
+	va_start(argp, msg);
+	vfprintf(stderr, msg, argp);
+	va_end(argp);
+	fflush(stderr);
+}
+
 // data reception
-int loratun_modem_recv(uint8_t *data, int len) {
+int modemtun_modem_recv(uint8_t *data, int len) {
 	con("[TEST] RECEIVED len(%d)=%s\n", len, data);
 	received++;
 	return 0;
@@ -28,7 +37,7 @@ int loratun_modem_recv(uint8_t *data, int len) {
 
 // modem thread wrapper
 int *modem_thread(void *p) {
-	loratun_modem(modem_config);
+	modemtun_modem(modem_config);
 	return NULL;
 }
 
@@ -41,7 +50,7 @@ int main() {
 	// quit signal handler
 	void sig_handler(int signo) {
 		con("\n");
-		loratun_modem_destroy();
+		modemtun_modem_destroy();
 		modem_config_destroy();
 	}
 
@@ -54,6 +63,9 @@ int main() {
 
 	// add needed configurations
 	modem_config_add("key", "value");
+
+	// start print debug
+	con("[TEST] starting with next configurations:\n");
 	modem_config_print();
 
 	// initialize mutex
@@ -70,7 +82,7 @@ int main() {
 
 	// send some test data
 	con("[TEST] send test\n");
-	loratun_modem_send((uint8_t *)"ABC\0", 4);
+	modemtun_modem_send((uint8_t *)"ABC\0", 4);
 
 	// wait until we receive data back
 	while (!received) usleep(100000);

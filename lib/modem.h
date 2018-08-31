@@ -10,9 +10,10 @@
 
 extern pthread_mutex_t tun_mutex;
 extern void con(char *msg, ...);
-int loratun_modem(List *modem_config);
-extern int loratun_modem_recv(uint8_t *data, int len); // callback
-int loratun_modem_send(uint8_t *data, int len);
-int loratun_modem_destroy();
+extern void err(char *msg, ...);
+int modemtun_modem(List *modem_config);
+extern int modemtun_modem_recv(uint8_t *data, int len); // callback
+int modemtun_modem_send(uint8_t *data, int len);
+int modemtun_modem_destroy();
 
 #endif

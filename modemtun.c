@@ -124,12 +124,12 @@ int read_n(int fd, uint8_t *buf, int n) {
 
 // modem thread wrapper
 int *modem_thread(void *p) {
-	loratun_modem(modem_config);
+	modemtun_modem(modem_config);
 	return NULL;
 }
 
 // data received from modem 
-int loratun_modem_recv(uint8_t *data, int len) {
+int modemtun_modem_recv(uint8_t *data, int len) {
 
 	uint8_t buffer[BUFFER_SIZE];
 
@@ -250,7 +250,7 @@ int main(int argc, char *argv[]) {
 	void sig_handler(int signo) {
 
 		// request modem quit
-		loratun_modem_destroy();
+		modemtun_modem_destroy();
 
 		/// wait for the thread to finish
 		if (pthread_join(modem_thread_t, NULL)) {
@@ -342,7 +342,7 @@ int main(int argc, char *argv[]) {
 							debug(schc_packet, schc_packet_len);
 						}
 						// send compressed packet to modem
-						loratun_modem_send(schc_packet, schc_packet_len);
+						modemtun_modem_send(schc_packet, schc_packet_len);
 					}
 				}
 
