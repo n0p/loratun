@@ -3,10 +3,7 @@ CFLAGS = -std=c11 -D_GNU_SOURCE -g -O2 -Wall -Wno-pointer-sign
 LDFLAGS = -lpthread -pthread
 MODEMTUN = lib/list.c lib/modem_config.c schc/context.c schc/schc.c schc/schc_fields.c modemtun.c -o
 
-all: footun loratun udp6test
-
-udp6test:
-	$(CC) $(CFLAGS) $(LDFLAGS) udp6test.c -o udp6test
+all: footun loratun
 
 footun:
 	$(CC) $(CFLAGS) $(LDFLAGS) modemfoo/modem.c $(MODEMTUN) footun
@@ -14,12 +11,14 @@ footun:
 loratun:
 	$(CC) $(CFLAGS) $(LDFLAGS) lib/serial.c lorawan/modem.c $(MODEMTUN) loratun
 
-test_footun: footun udp6test
-	bash -c "sleep 0.5 && ip addr add fd73:ab44:93dd:6b18::/64 dev footun && ip link set footun up && ./udp6test" &
+test_footun: footun
+	cd udp6test && $(MAKE) && cd ..
+	bash -c "sleep 0.5 && ip addr add fd73:ab44:93dd:6b18::/64 dev footun && ip link set footun up && ./udp6test/udp6test" &
 	./footun -d 2 -i footun -m 'key=sample value'
 
-test_loratun: loratun udp6test
-	bash -c "sleep 0.5 && ip addr add fd73:ab44:93dd:6b18::/64 dev loratun && ip link set loratun up && ./udp6test" &
+test_loratun: loratun
+	cd udp6test && $(MAKE) && cd ..
+	bash -c "sleep 0.5 && ip addr add fd73:ab44:93dd:6b18::/64 dev loratun && ip link set loratun up && ./udp6test/udp6test" &
 	./loratun -d 2 -i loratun \
 	-m SerialPort=/dev/ttyACM0 \
 	-m AT+APPKEY=ce:e3:fa:63:e5:ee:e8:ff:28:dd:08:69:ca:48:87:1c \
@@ -34,4 +33,4 @@ test_loratun: loratun udp6test
 	-m AT+NJM=1 \
 
 clean:
-	@rm -f *.o footun loratun udp6test
+	@rm -f *.o footun loratun
