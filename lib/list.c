@@ -1,6 +1,6 @@
 /*
 
-	xkrambler's minimal list implementation v0.2
+	xkrambler's minimal list implementation v0.3
 	03/Sep/2013 Pablo Rodriguez Rey (mr -at- xkr -dot- es)
 
 	This program is free software: you can redistribute it and/or modify
@@ -23,8 +23,8 @@
 void listInit(List *list) {
 	list->first=NULL;
 	list->last=NULL;
-	list->num=0;
-	list->uids=0;
+	list->id=NULL;
+	list->count=0;
 }
 
 // creates a new list O(1)
@@ -44,36 +44,36 @@ void listFree(List *l) {
 Node *listNodeAdd(List *list, void *element) {
 	Node *n=malloc(sizeof(Node));
 	if (list->last) {
-		n->ant=list->last;
-		list->last->sig=n;
+		n->prev=list->last;
+		list->last->next=n;
 	} else {
 		list->first=n;
-		n->ant=NULL;
+		n->prev=NULL;
 	}
 	n->e=element;
-	n->sig=NULL;
+	n->next=NULL;
 	list->last=n;
-	list->num++;
+	list->count++;
 	return n;
 }
 
 // delete a node from a list O(1)
 int listNodeDel(List *list, Node *n) {
 	if (!list || !n) return 0;
-	if (n->ant && n->sig) {
-		n->ant->sig=n->sig;
-		n->sig->ant=n->ant;
-	} else if (!n->ant && n->sig) {
-		list->first=n->sig;
-		n->sig->ant=NULL;
-	} else if (n->ant && !n->sig) {
-		list->last=n->ant;
-		n->ant->sig=NULL;
+	if (n->prev && n->next) {
+		n->prev->next=n->next;
+		n->next->prev=n->prev;
+	} else if (!n->prev && n->next) {
+		list->first=n->next;
+		n->next->prev=NULL;
+	} else if (n->prev && !n->next) {
+		list->last=n->prev;
+		n->prev->next=NULL;
 	} else {
 		list->first=NULL;
 		list->last=NULL;
 	}
 	free(n);
-	list->num--;
+	list->count--;
 	return 1;
 }

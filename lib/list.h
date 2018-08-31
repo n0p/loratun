@@ -1,6 +1,6 @@
 /*
 
-	xkrambler's minimal list implementation v0.2
+	xkrambler's minimal list implementation v0.3
 	03/Sep/2013 Pablo Rodriguez Rey (mr -at- xkr -dot- es)
 
 	This program is free software: you can redistribute it and/or modify
@@ -24,18 +24,18 @@
 
 // list node
 struct node {
+	struct node *prev;
+	struct node *next;
 	void *e;
-	struct node *ant;
-	struct node *sig;
 };
 typedef struct node Node;
 
 // list
 typedef struct {
+	void *id;
+	int count;
 	Node *first;
 	Node *last;
-	int num;
-	int uids;
 } List;
 
 // setup an existing list O(1)

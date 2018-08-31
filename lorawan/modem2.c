@@ -178,7 +178,7 @@ int loratun_modem_init(List *param) {
 			sprintf(serport, "%s", c->value);
 			break;
 		}
-		n=n->sig;
+		n=n->next;
 	}
 	
  	fd=serial_open(serport);
@@ -206,7 +206,7 @@ int loratun_modem_init(List *param) {
 				resp_read(scrapbuf);
 				// PROBLEMA GRAVE
 			} else printf("loratun_modem_init(): Config Key %s is not an AT command\n", c->key);
-			n=n->sig;
+			n=n->next;
 		}
 		
 		printf("loratun_modem_init(): Sending JOIN request\n");
@@ -501,10 +501,10 @@ int loratun_modem2(List *param){
 								send("=");
 								send(c->value);
 								send("\n");
-								n=n->sig;
+								n=n->next;
 								break;
 							}
-							n=n->sig;
+							n=n->next;
 						} while (n);
 					} else {
 						printf("loratun_modem(): Sending JOIN request\n");

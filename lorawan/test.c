@@ -1,28 +1,70 @@
 #include <signal.h>
 #include <unistd.h>
 #include <stdlib.h>
-#include <string.h>
+#include <pthread.h>
+#include <stdarg.h>
+#include <stdbool.h>
 
 #include "../lib/modem.h"
 
-List *modem_config;
+bool terminated=true;
+bool received=false;
+pthread_mutex_t tun_mutex;
 
-int loratun_modem_recv(uint8_t *data, int len) {
-	printf("test.c: we got a callback with %d bytes\n Contents: %s\n", len, data);
+// output to console
+void con(char *msg, ...) {
+	va_list argp;
+	va_start(argp, msg);
+	vfprintf(stdout, msg, argp);
+	va_end(argp);
+	fflush(stdout);
+}
+
+// output to error
+void err(char *msg, ...) {
+	va_list argp;
+	va_start(argp, msg);
+	vfprintf(stderr, msg, argp);
+	va_end(argp);
+	fflush(stderr);
+}
+
+// data reception
+int modemtun_modem_recv(uint8_t *data, int len) {
+	con("[TEST] RECEIVED len(%d)=%s\n", len, data);
+	received=true;
 	return 0;
 }
 
+// modem thread wrapper
+int *modem_thread(void *p) {
+	modemtun_modem(modem_config);
+	terminated=true;
+	received=true;
+	return NULL;
+}
+
+// main application
 int main() {
 
-	modem_config_init();
+	// thread
+	pthread_t modem_thread_t;
 
+	// quit signal handler
 	void sig_handler(int signo) {
-		printf("\n");
-		loratun_modem_destroy();
+		con("\n");
+		modemtun_modem_destroy();
 		modem_config_destroy();
-		exit(0);
 	}
 
+	// initialize list of modem configurations
+	modem_config_init();
+
+	// register signals
+	if (signal(SIGINT,  sig_handler) == SIG_ERR) perror("\ncan't catch SIGINT\n");
+	if (signal(SIGQUIT, sig_handler) == SIG_ERR) perror("\ncan't catch SIGQUIT\n");
+
+	// add needed configurations
 	modem_config_add("SerialPort", "/dev/ttyACM0");
 	 // App keys for pleiades gateway
 	modem_config_add("AT+APPKEY", "ce:e3:fa:63:e5:ee:e8:ff:28:dd:08:69:ca:48:87:1c");
@@ -43,16 +85,45 @@ int main() {
 	modem_config_add("AT+CLASS", "C");
 	modem_config_add("AT+NJM", "1");
 
+	// start print debug
+	con("[TEST] starting with next configurations:\n");
+	modem_config_print();
+
+	// initialize mutex
+	if (pthread_mutex_init(&tun_mutex, NULL) != 0) {
+		perror("[TEST] tun_mutex init");
+		return 1;
+	}
+
+	// start thread
+	if (pthread_create(&modem_thread_t, NULL, (void *)modem_thread, 0)) {
+		perror("[TEST] error creating thread");
+		return 1;
+	}
+
+	// send some test data
+	con("[TEST] send test\n");
 	uint8_t testpkt [] = {0x07, 0x40, 0xD4, 0x6C, 0x48, 0x4F, 0x4C, 0x40, 0x21, 0x00};
-	
-	if (signal(SIGINT,  sig_handler) == SIG_ERR) perror("\ncan't catch SIGINT\n");
-	if (signal(SIGQUIT, sig_handler) == SIG_ERR) perror("\ncan't catch SIGQUIT\n");
+	modemtun_modem_send(testpkt, sizeof(testpkt));
 
-	loratun_modem(modem_config);
-	loratun_modem_send(testpkt, sizeof(testpkt)); // TODO: we cannot call this function since we are locked in a loop
-	
-	sig_handler(SIGINT);
+	// wait until we receive data back
+	while (!received) usleep(100000);
 
+	// request termination
+	con("[TEST] Requesting termination");
+	sig_handler(SIGQUIT);
+
+	/// wait for the thread to finish
+	if (pthread_join(modem_thread_t, NULL)) {
+		perror("[TEST] Error joining thread");
+		return 2;
+	}
+
+	// remove handlers
+	signal(SIGINT, SIG_DFL);
+	signal(SIGQUIT, SIG_DFL);
+
+	// all ok
 	return 0;
 
 }

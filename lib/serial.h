@@ -6,10 +6,7 @@
 #include <unistd.h>
 #include <termios.h>
 #include <fcntl.h> 
-
 #include <errno.h>
-//#include <sys/time.h>
-//#include <sys/types.h> 
 #include <sys/select.h>
 
 //int ret=system("/bin/stty -F /dev/ttyACM0 9600 cs8 -cstopb -parenb ignbrk -brkint -imaxbel -opost -onlcr -isig -icanon -iexten -echo -echoe -echok -echoctl -echoke noflsh -ixon -crtscts");

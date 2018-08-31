@@ -24,7 +24,7 @@ char *config_get(char *key) {
 	while (n) {
 		Config *c=(Config *)n->e;
 		if (!strcmp(c->key, key)) return c->value;
-		n=n->sig;
+		n=n->next;
 	}
 	return NULL;
 }
@@ -35,7 +35,7 @@ void config_print() {
 	while (n) {
 		Config *c=(Config *)n->e;
 		printf("%s=%s\n", c->key, c->value);
-		n=n->sig;
+		n=n->next;
 	}
 }
 
@@ -45,7 +45,7 @@ void config_destroy() {
 	while (n) {
 		config_del((Config *)n->e);
 		listNodeDel(config, n);
-		n=n->sig;
+		n=n->next;
 	}
 	listFree(config);
 }

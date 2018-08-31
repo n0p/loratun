@@ -26,7 +26,7 @@ char *modem_config_get(char *key) {
 	while (n) {
 		ModemConfig *c=(ModemConfig *)n->e;
 		if (!strcmp(c->key, key)) return c->value;
-		n=n->sig;
+		n=n->next;
 	}
 	return NULL;
 }
@@ -37,7 +37,7 @@ void modem_config_print() {
 	while (n) {
 		ModemConfig *c=(ModemConfig *)n->e;
 		printf("%s=%s\n", c->key, c->value);
-		n=n->sig;
+		n=n->next;
 	}
 }
 
@@ -47,7 +47,7 @@ void modem_config_destroy() {
 	while (n) {
 		modem_config_del((ModemConfig *)n->e);
 		listNodeDel(modem_config, n);
-		n=n->sig;
+		n=n->next;
 	}
 	listFree(modem_config);
 }

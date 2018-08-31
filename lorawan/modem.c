@@ -177,7 +177,7 @@ int modemtun_modem_init(List *param) {
 			sprintf(serport, "%s", c->value);
 			break;
 		}
-		n=n->sig;
+		n=n->next;
 	}
 
 	// is serial port defined?
@@ -211,7 +211,7 @@ int modemtun_modem_init(List *param) {
 				usleep(100000);
 				resp_read(scrapbuf);
 			} else con("modemtun_modem_init(): Config Key %s is not an AT command\n", c->key);
-			n=n->sig;
+			n=n->next;
 		}
 		
 		con("modemtun_modem_init(): Sending JOIN request\n");

@@ -1,11 +1,11 @@
-#include "../lib/modem.h"
-
 #include <signal.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <pthread.h>
 #include <stdarg.h>
 #include <stdbool.h>
+
+#include "../lib/modem.h"
 
 bool received=false;
 pthread_mutex_t tun_mutex;

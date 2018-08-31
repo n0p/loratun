@@ -420,7 +420,7 @@ int main(int argc, char **argv) {
 					// while pending configurations
 					while (config_node) {
 						Config *c=(Config *)config_node->e;
-						config_node=config_node->sig;
+						config_node=config_node->next;
 						if (equals("at", c->key)) {
 							if (debug_level > 0) con("Startup config %s\n", c->value);
 							cmd_send(c->value);
