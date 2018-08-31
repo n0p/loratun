@@ -1,13 +1,11 @@
 #include <unistd.h>
+#include <stdbool.h>
 
 #include "../lib/modem.h"
 
-#define true 1
-#define false 0
-
-int running=true;
-uint8_t *copybuf=NULL;
+bool running=false;
 int copybuf_len;
+uint8_t *copybuf=NULL;
 
 // aux: free copy buffer
 void copybuf_free() {
@@ -20,6 +18,7 @@ void copybuf_free() {
 // modem loop
 int loratun_modem(List *param) {
 	con("[MODEM] started (sample key=%s)\n", modem_config_get("key"));
+	running=true;
 	while (running) {
 		usleep(100000);
 		pthread_mutex_lock(&tun_mutex);
@@ -35,11 +34,14 @@ int loratun_modem(List *param) {
 
 // send data from interface to modem
 int loratun_modem_send(uint8_t *data, int len) {
-	con("[MODEM] sending %d bytes!\n", len);
+	if (!running) while (!running) usleep(100000); // wait for modem initialization
+	pthread_mutex_lock(&tun_mutex);
+	con("[MODEM] received %d bytes from the interface, sending them back.\n", len);
 	copybuf_len=len;
 	if (copybuf) free(copybuf);
 	copybuf=malloc(len);
 	memcpy(copybuf, data, len);
+	pthread_mutex_unlock(&tun_mutex);
 	return 0;
 }
 
