@@ -14,7 +14,7 @@ char scrapbuf[MAX_LINE];
  */
 int get_init_status() {
 	if (fd == 0) { 
-		perror("Uninitialized serial port"); 
+		err("Uninitialized serial port"); 
 		return -1;
 	}
 	return 0;
