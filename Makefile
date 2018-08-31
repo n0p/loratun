@@ -16,11 +16,11 @@ loratun:
 
 test_footun: footun udp6test
 	bash -c "sleep 0.5 && ip addr add fd73:ab44:93dd:6b18::/64 dev footun && ip link set footun up && ./udp6test" &
-	./footun -u -d 2 -i footun -m 'key=sample value'
+	./footun -d 2 -i footun -m 'key=sample value'
 
 test_loratun: loratun udp6test
 	bash -c "sleep 0.5 && ip addr add fd73:ab44:93dd:6b18::/64 dev loratun && ip link set loratun up && ./udp6test" &
-	./loratun -u -d 2 -i loratun \
+	./loratun -d 2 -i loratun \
 	-m SerialPort=/dev/ttyACM0 \
 	-m AT+APPKEY=ce:e3:fa:63:e5:ee:e8:ff:28:dd:08:69:ca:48:87:1c \
 	-m AT+NWSKEY=cb:c9:a5:4e:de:35:4e:c9:33:61:cf:01:c3:71:e7:e2 \

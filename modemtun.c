@@ -1,8 +1,8 @@
 #include <stdio.h>
+#include <signal.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
-#include <signal.h>
 #include <unistd.h>
 #include <net/if.h>
 #include <linux/if_tun.h>
@@ -16,6 +16,7 @@
 #include <sys/time.h>
 #include <errno.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <pthread.h>
 
 #include "lib/debug.h"
@@ -23,16 +24,18 @@
 #include "schc/schc.h"
 #include "schc/schc_fields.h"
 
-#define BUFFER_SIZE 2048 // buffer for reading from tun/tap interface, must be >= 1500
+#define BUFFER_SIZE 2048 // buffer for reading from tun interface, must be >= 1500
 
-int tap_fd;
+int tun_fd;
 int debug_level=0;
+bool modem_exit=false;
+int modem_ret=0;
 
 pthread_mutex_t recv_mutex;
 pthread_mutex_t tun_mutex;
 
-unsigned long int stats_tap_r=0;
-unsigned long int stats_tap_w=0;
+unsigned long int stats_tun_r=0;
+unsigned long int stats_tun_w=0;
 
 // aux: search position of a needle in a haystack
 int strpos(char *haystack, char *needle) {
@@ -58,7 +61,7 @@ void err(char *msg, ...) {
 	va_end(argp);
 }
 
-// allocates or reconnects to a tun/tap device. The caller must reserve enough space in *dev.
+// allocates or reconnects to a tun device. The caller must reserve enough space in *dev.
 int tun_alloc(char *dev, int if_flags) {
 
 	struct ifreq ifr;
@@ -123,8 +126,9 @@ int read_n(int fd, uint8_t *buf, int n) {
 }
 
 // modem thread wrapper
-int *modem_thread(void *p) {
-	modemtun_modem(modem_config);
+void *modem_thread(void *p) {
+	modem_ret=modemtun_modem(modem_config);
+	modem_exit=true;
 	return NULL;
 }
 
@@ -149,11 +153,11 @@ int modemtun_modem_recv(uint8_t *data, int len) {
 			debug(buffer, buffer_len);
 		}
 
-		stats_tap_w++;
+		stats_tun_w++;
 
-		// now buffer[] contains a full packet or frame, write it into the tun/tap interface
-		int nwrite = cwrite(tap_fd, buffer, buffer_len);
-		if (debug_level>1) con("[TUN] %lu: written %d bytes to the tap interface\n", stats_tap_w, nwrite);
+		// now buffer[] contains a full packet or frame, write it into the tun interface
+		int nwrite = cwrite(tun_fd, buffer, buffer_len);
+		if (debug_level>1) con("[TUN] %lu: written %d bytes to the tun interface\n", stats_tun_w, nwrite);
 
 	}
 
@@ -197,14 +201,6 @@ int main(int argc, char *argv[]) {
 		case 'i':
 			strncpy(if_name, optarg, IFNAMSIZ-1);
 			break;
-		/*
-		case 'u':
-			if_flags=IFF_TUN;
-			break;
-		case 'a':
-			if_flags=IFF_TAP;
-			break;
-		*/
 		case 'm':
 			{
 				int p=strpos(optarg, "=");
@@ -235,9 +231,9 @@ int main(int argc, char *argv[]) {
 		usage(stderr);
 	}
 
-	// initialize tun/tap interface
-	if ((tap_fd = tun_alloc(if_name, if_flags | IFF_NO_PI)) < 0) {
-		err("Error connecting to tun/tap interface %s!\n", if_name);
+	// initialize tun interface
+	if ((tun_fd = tun_alloc(if_name, if_flags | IFF_NO_PI)) < 0) {
+		err("Error connecting to tun interface %s!\n", if_name);
 		exit(1);
 	}
 
@@ -262,7 +258,11 @@ int main(int argc, char *argv[]) {
 		modem_config_destroy();
 
 		// everything is OK, lets quit!
-		exit(0);
+		if (debug_level>0) {
+			if (modem_ret) err("Finished with modem error=%d.\n", modem_ret);
+			else con("Finished with no errors.\n");
+		}
+		exit(modem_ret);
 
 	}
 
@@ -287,28 +287,28 @@ int main(int argc, char *argv[]) {
 	}
 
 	// bucle principal
-	while (1) {
+	while (!modem_exit) {
 
 		int ret;
 		fd_set rd_set;
 
 		FD_ZERO(&rd_set);
-		FD_SET(tap_fd, &rd_set);
+		FD_SET(tun_fd, &rd_set);
 
-		ret = select(tap_fd + 1, &rd_set, NULL, NULL, NULL);
+		ret = select(tun_fd + 1, &rd_set, NULL, NULL, NULL);
 		if (ret < 0) {
 			if (errno == EINTR) continue;
 			perror("select()");
 			break;
 		}
 
-		// data from tun/tap: just read it and write it to the network
-		if (FD_ISSET(tap_fd, &rd_set)) {
+		// data from tun: just read it and write it to the network
+		if (FD_ISSET(tun_fd, &rd_set)) {
 
-			nread = cread(tap_fd, buffer, BUFFER_SIZE);
+			nread = cread(tun_fd, buffer, BUFFER_SIZE);
 
-			stats_tap_r++;
-			if (debug_level>0) con("[TUN] %lu: Read %d bytes from the tap interface\n", stats_tap_r, nread);
+			stats_tun_r++;
+			if (debug_level>0) con("[TUN] %lu: Read %d bytes from the tun interface\n", stats_tun_r, nread);
 
 			if (debug_level>1) {
 				con("[TUN] READ ");
@@ -352,10 +352,10 @@ int main(int argc, char *argv[]) {
 
 	}
 
-	// finish
+	// request a quit
 	sig_handler(SIGINT);
 
-	// this will never happen
+	// fallback: this will never happen
 	return 255;
 
 }
