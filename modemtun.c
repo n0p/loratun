@@ -214,26 +214,26 @@ int main(int argc, char *argv[]) {
 			debug_level=atoi(optarg);
 			break;
 		default:
-			err("Unknown option %c\n", option);
+			err("[TUN] Unknown option %c\n", option);
 			usage(stderr);
 		}
 	}
 
 	// check excess options
 	if (argc - optind > 0) {
-		err("Too many options!\n");
+		err("[TUN] Too many options!\n");
 		usage(stderr);
 	}
 
 	// check interface name
 	if (*if_name == '\0') {
-		err("Must specify interface name!\n");
+		err("[TUN] Must specify interface name!\n");
 		usage(stderr);
 	}
 
 	// initialize tun interface
 	if ((tun_fd = tun_alloc(if_name, if_flags | IFF_NO_PI)) < 0) {
-		err("Error connecting to tun interface %s!\n", if_name);
+		err("[TUN] Error connecting to tun interface %s!\n", if_name);
 		exit(1);
 	}
 
@@ -259,8 +259,8 @@ int main(int argc, char *argv[]) {
 
 		// everything is OK, lets quit!
 		if (debug_level>0) {
-			if (modem_ret) err("Finished with modem error=%d.\n", modem_ret);
-			else con("Finished with no errors.\n");
+			if (modem_ret) err("[TUN] Finished with modem error=%d.\n", modem_ret);
+			else con("[TUN] Finished with no errors.\n");
 		}
 		exit(modem_ret);
 
