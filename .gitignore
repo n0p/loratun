@@ -3,8 +3,9 @@ modem/test
 lorawan/test
 elm327/elm327
 schc/test
+udp6test/udp6test
+footun
 loratun
-udp6test
 
 # Prerequisites
 *.d
