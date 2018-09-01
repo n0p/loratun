@@ -269,6 +269,8 @@ int check_modemtun_modem_recv(uint8_t *data) {
  * Send a packet to the network
  */
 int modemtun_modem_send(uint8_t *data, int len) {
+	pthread_mutex_lock(&tun_mutex);
+  
 	if ( get_init_status() < 0 ) return -1;
 	uint8_t* cleanbuf;
 	cleanbuf = malloc(2048);
@@ -277,8 +279,6 @@ int modemtun_modem_send(uint8_t *data, int len) {
 		con ("modemtun_modem_send(): ERROR: Not joined - Not trying\n");
 		return -1;
 	}
-
-
 	usleep(200000);
 	sprintf(cleanbuf, "AT+SENDB=10:\n");
 	
@@ -323,6 +323,7 @@ int modemtun_modem_send(uint8_t *data, int len) {
 		default:
 			err("modemtun_modem_send(): Unexpected output from modem: %d\n", code);
 	}
+	pthread_mutex_unlock(&tun_mutex);
 	return code;
 }
 
@@ -345,7 +346,7 @@ int modemtun_modem_destroy() {
  */
 int modemtun_modem(List *param){
 
-//	pthread_mutex_lock(&send_mutex);
+	pthread_mutex_lock(&tun_mutex);
 
 	int abort = 0;
 	int errcount = 0;
@@ -361,7 +362,9 @@ int modemtun_modem(List *param){
 	con("modemtun_modem(): Checking joined\n");
 	modemtun_modem_check_joined();
 	
-	con("Modem: Loop()\n");
+	pthread_mutex_unlock(&tun_mutex);
+
+  con("Modem: Loop()\n");
 	while (!abort){
 		switch (check_modemtun_modem_recv(pktbuf)) {
 			case 0:
@@ -386,9 +389,7 @@ int modemtun_modem(List *param){
 			errcount++;
 		}
 
-//		pthread_mutex_unlock(&send_mutex);
 		sleep(1);
-//		pthread_mutex_lock(&send_mutex);
 		
 		//** FOR TESTING AND DEBUG PURPOSES **//
 		uint8_t testpkt [] = {0x07, 0x40, 0xD4, 0x6C, 0x48, 0x4F, 0x4C, 0x40, 0x21, 0x00};
