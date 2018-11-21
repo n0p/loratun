@@ -1,5 +1,5 @@
 # modemtun
-modem tunneled interface
+generic TUN-modem interface implementation
 
 This code creates a tun devices, processes incoming packets through a static header compression engine (SHCH) and forwards them to a modem interface.
 
